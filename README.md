@@ -8,6 +8,27 @@ room gets a color-coded alert with a chime that repeats until someone taps
 No accounts, no passwords, nothing to install on staff computers — it runs in
 any web browser.
 
+> ### ⚠️ Before you rely on it — please read
+>
+> Dental Flow is a convenience tool for **routine, non-urgent** messages
+> between rooms. It is **not** an emergency or nurse-call system, and not a
+> medical device.
+>
+> Messages can fail to arrive for ordinary reasons — a computer asleep, a
+> browser closed, Wi-Fi dropped, the server switched off, the volume muted.
+> Dental Flow tries hard to make those failures *visible* (rooms with no screen
+> open are marked, unanswered alerts are escalated back to the sender, and a red
+> bar appears when a screen loses contact) but it cannot promise delivery.
+>
+> - **Keep your existing way of calling for help** for anything urgent. Never
+>   let Dental Flow be the only way to reach someone.
+> - **Don't type patient names or other identifying details** into the note
+>   box. Use the room, not the person. Notes appear on screens and in the
+>   recent-activity list, and cross the office network unencrypted.
+> - Provided **as is, with no warranty of any kind**, and with no liability for
+>   any message that is delayed or never seen. See [LICENSE](LICENSE) for the
+>   full terms, which you accept by running the program.
+
 ---
 
 ## One-time setup (2 minutes, done by one person)
@@ -249,3 +270,18 @@ is fine, and `public/admin.html` builds its ids from that.
 
 `server.js.reference` is the original Node implementation, kept for comparison.
 It predates everything in the two paragraphs above.
+
+---
+
+## License and disclaimer
+
+Copyright © 2026 SMEdevelop. **All rights reserved.**
+
+Dental Flow is proprietary software. It is not open source: no permission is
+granted to use, copy, modify, or distribute it except under a separate written
+agreement with the copyright holder.
+
+It is provided **as is**, with no warranty of any kind and no liability for any
+loss arising from a message that was delayed, misdirected, or never seen. It is
+not a medical device and must not be relied on for anything urgent. The full
+terms are in [LICENSE](LICENSE), and running the program accepts them.

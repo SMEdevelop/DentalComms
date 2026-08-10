@@ -6,6 +6,10 @@
 *.o
 *.obj
 
+# Packaged release zips, kept here for handing to the office. The copy that
+# matters is the one attached to the GitHub release for that tag.
+*.zip
+
 # Written at runtime, and holds the office's own live settings: station names,
 # quick-message buttons, allowed host names. Dental Flow recreates it with the
 # defaults on first start, so a fresh clone needs nothing here.

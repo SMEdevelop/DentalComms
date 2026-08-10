@@ -1,0 +1,7 @@
+# Normalise line endings so a checkout on another machine doesn't show every
+# file as modified. Batch files are kept CRLF because cmd.exe needs them that
+# way, and the icons are binary.
+* text=auto
+*.bat text eol=crlf
+*.png binary
+*.exe binary

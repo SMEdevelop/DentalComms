@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dental Flow</title>
+<meta name="theme-color" content="#1c7ed6">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+<header id="topbar">
+  <div id="office-name">Dental Flow</div>
+  <div id="my-station-wrap">
+    <span class="muted">This computer is:</span>
+    <button id="my-station-btn" class="pill">…</button>
+    <button id="popout-btn" title="Open Dental Flow in a small window you can resize and keep in a corner">⧉ Pop out</button>
+    <a href="/admin" id="settings-link" title="Setup: rooms &amp; message buttons">⚙️ Settings</a>
+  </div>
+</header>
+
+<main id="main">
+  <h2 id="grid-title">Tap the rooms you want to message — you can pick more than one</h2>
+  <div id="station-grid" class="grid"></div>
+
+  <section id="recent-panel">
+    <button id="recent-toggle">Recent activity ▾</button>
+    <ul id="recent-list" hidden></ul>
+  </section>
+</main>
+
+<!-- Pick-your-station screen -->
+<div id="setup" class="overlay" hidden>
+  <div class="sheet">
+    <h1>Welcome! 👋</h1>
+    <p class="big">Which station is this computer at?</p>
+    <p class="muted">You only pick this once — it will be remembered.</p>
+    <div id="setup-grid" class="grid"></div>
+  </div>
+</div>
+
+<!-- Compose: pick a quick message -->
+<div id="compose" class="overlay" hidden>
+  <div class="sheet">
+    <button class="close-x" id="compose-close" aria-label="Close">✕</button>
+    <p class="big">Send to <strong id="compose-to"></strong>:</p>
+    <div id="preset-grid" class="grid"></div>
+    <div class="note-row">
+      <input id="compose-note" type="text" maxlength="120"
+             placeholder="Optional: type a short note instead…">
+      <button id="compose-send-note" class="btn-plain">Send note</button>
+    </div>
+    <button id="compose-cancel" class="btn-big btn-gray">Never mind — go back</button>
+  </div>
+</div>
+
+<!-- Incoming alert -->
+<div id="alert" class="overlay" hidden>
+  <div class="sheet alert-sheet" id="alert-sheet">
+    <p class="alert-from">Message from <strong id="alert-from"></strong></p>
+    <p class="alert-label" id="alert-label"></p>
+    <p class="alert-note" id="alert-note"></p>
+    <button id="alert-ack" class="btn-big btn-ack">✓&nbsp; Got it</button>
+    <p class="muted" id="alert-more"></p>
+  </div>
+</div>
+
+<!-- Send bar: appears when rooms are selected -->
+<div id="send-bar" hidden>
+  <button id="send-bar-clear">✕ Clear</button>
+  <button id="send-bar-btn">Send a message ➤</button>
+</div>
+
+<!-- Outgoing status toast -->
+<div id="toast" hidden>
+  <span id="toast-text"></span>
+  <button id="toast-cancel" hidden>Cancel</button>
+</div>
+
+<div id="sound-hint" hidden>🔈 Tap anywhere once to turn on sounds</div>
+
+<!-- Shown whenever the live connection to the server is down, so nobody is
+     looking at a screen that quietly stopped receiving messages. -->
+<div id="offline" hidden>⚠️ Not connected to Dental Flow — messages may not arrive. Trying to reconnect…</div>
+
+<script src="app.js"></script>
+</body>
+</html>

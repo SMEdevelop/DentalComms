@@ -1,0 +1,246 @@
+#!/usr/bin/env node
+/*
+ * Dental Flow — simple intraoffice messaging (BlueNote-style)
+ * Zero dependencies: plain Node.js HTTP server + Server-Sent Events.
+ * Run with:  node server.js   (then open http://localhost:3000)
+ */
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+// Port: an uncommon default to avoid clashing with other software.
+// To change it, put just a number (e.g. 8123) in a file named port.txt
+// next to this file — no code editing needed.
+const DEFAULT_PORT = 3272;
+function pickPort() {
+  if (process.env.PORT && /^\d+$/.test(process.env.PORT)) return +process.env.PORT;
+  try {
+    const t = fs.readFileSync(path.join(__dirname, 'port.txt'), 'utf8').trim();
+    if (/^\d{2,5}$/.test(t)) return +t;
+  } catch {}
+  return DEFAULT_PORT;
+}
+const PORT = pickPort();
+const DATA_DIR = path.join(__dirname, 'data');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+const DEFAULT_CONFIG = {
+  officeName: 'Our Office',
+  stations: [
+    { id: 'front', name: 'Front Desk' },
+    { id: 'room1', name: 'Room 1' },
+    { id: 'room2', name: 'Room 2' },
+    { id: 'room3', name: 'Room 3' },
+    { id: 'office', name: 'Back Office' },
+    { id: 'lab', name: 'Lab' }
+  ],
+  presets: [
+    { id: 'doctor', label: 'Doctor needed', color: '#d64545', urgent: true },
+    { id: 'ready', label: 'Patient is ready', color: '#2f9e44', urgent: false },
+    { id: 'phone', label: 'Phone call for you', color: '#1c7ed6', urgent: false },
+    { id: 'assist', label: 'Please assist', color: '#e8890c', urgent: false },
+    { id: 'checkout', label: 'Ready for checkout', color: '#7048b6', urgent: false },
+    { id: 'comehere', label: 'Please come here', color: '#0ca678', urgent: false }
+  ]
+};
+
+// ---------- config persistence ----------
+let config;
+function loadConfig() {
+  try {
+    config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  } catch {
+    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    saveConfig();
+  }
+}
+function saveConfig() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+loadConfig();
+
+// ---------- live state ----------
+let signals = [];        // active, unacknowledged signals
+let recent = [];         // last 50 log entries
+const clients = new Set(); // SSE connections
+
+function logEvent(text) {
+  recent.unshift({ text, time: Date.now() });
+  if (recent.length > 50) recent.pop();
+}
+
+function broadcast(event, data) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of clients) res.write(msg);
+}
+
+function stationName(id) {
+  if (id === 'all') return 'Everyone';
+  const s = config.stations.find(s => s.id === id);
+  return s ? s.name : id;
+}
+
+// ---------- helpers ----------
+function sendJSON(res, code, obj) {
+  const body = JSON.stringify(obj);
+  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(body);
+}
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', c => { data += c; if (data.length > 1e6) req.destroy(); });
+    req.on('end', () => {
+      try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.json': 'application/json',
+  '.ico': 'image/x-icon'
+};
+function serveStatic(res, file) {
+  const full = path.join(PUBLIC_DIR, file);
+  if (!full.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end(); return; }
+  fs.readFile(full, (err, buf) => {
+    if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    res.end(buf);
+  });
+}
+
+// ---------- server ----------
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const p = url.pathname;
+
+  // --- Server-Sent Events stream ---
+  if (p === '/api/events') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-store',
+      'Connection': 'keep-alive'
+    });
+    res.write(`event: hello\ndata: {}\n\n`);
+    clients.add(res);
+    const ping = setInterval(() => res.write(': ping\n\n'), 25000);
+    req.on('close', () => { clearInterval(ping); clients.delete(res); });
+    return;
+  }
+
+  // --- API ---
+  if (p === '/api/state' && req.method === 'GET') {
+    return sendJSON(res, 200, { config, signals, recent });
+  }
+
+  if (p === '/api/signals' && req.method === 'POST') {
+    let body;
+    try { body = await readBody(req); } catch { return sendJSON(res, 400, { error: 'bad json' }); }
+    const { from, to, presetId, note } = body;
+    const preset = config.presets.find(pr => pr.id === presetId);
+    // `to` may be one station id or an array of them
+    const targets = (Array.isArray(to) ? to : [to])
+      .filter(t => t === 'all' || config.stations.some(s => s.id === t));
+    if (!from || !targets.length || (!preset && !note)) return sendJSON(res, 400, { error: 'missing fields' });
+    const created = targets.map(t => ({
+      id: crypto.randomUUID(),
+      from, to: t,
+      presetId: preset ? preset.id : null,
+      label: preset ? preset.label : 'Message',
+      color: preset ? preset.color : '#1c7ed6',
+      urgent: preset ? !!preset.urgent : false,
+      note: (note || '').slice(0, 200),
+      time: Date.now()
+    }));
+    signals.push(...created);
+    const first = created[0];
+    logEvent(`${stationName(from)} → ${targets.map(stationName).join(', ')}: ${first.label}${first.note ? ' — ' + first.note : ''}`);
+    for (const s of created) broadcast('signal-new', s);
+    return sendJSON(res, 200, { signals: created });
+  }
+
+  const ackMatch = p.match(/^\/api\/signals\/([\w-]+)\/(ack|cancel)$/);
+  if (ackMatch && req.method === 'POST') {
+    const [, id, action] = ackMatch;
+    const idx = signals.findIndex(s => s.id === id);
+    if (idx === -1) return sendJSON(res, 200, { ok: true }); // already gone — fine
+    const [signal] = signals.splice(idx, 1);
+    if (action === 'ack') {
+      let by = 'ack';
+      try { by = (await readBody(req)).by || signal.to; } catch { by = signal.to; }
+      logEvent(`${stationName(by)} saw: "${signal.label}" from ${stationName(signal.from)}`);
+      broadcast('signal-ack', { ...signal, by });
+    } else {
+      logEvent(`${stationName(signal.from)} canceled: "${signal.label}" to ${stationName(signal.to)}`);
+      broadcast('signal-cancel', signal);
+    }
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  if (p === '/api/config' && req.method === 'POST') {
+    let body;
+    try { body = await readBody(req); } catch { return sendJSON(res, 400, { error: 'bad json' }); }
+    if (!Array.isArray(body.stations) || !Array.isArray(body.presets) ||
+        body.stations.length === 0 || body.presets.length === 0) {
+      return sendJSON(res, 400, { error: 'need at least one station and one quick message' });
+    }
+    config = {
+      officeName: String(body.officeName || 'Our Office').slice(0, 60),
+      stations: body.stations.slice(0, 40).map(s => ({
+        id: String(s.id || crypto.randomUUID()).slice(0, 40),
+        name: String(s.name || 'Station').slice(0, 40)
+      })),
+      presets: body.presets.slice(0, 20).map(pr => ({
+        id: String(pr.id || crypto.randomUUID()).slice(0, 40),
+        label: String(pr.label || 'Message').slice(0, 60),
+        color: /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#1c7ed6',
+        urgent: !!pr.urgent
+      }))
+    };
+    saveConfig();
+    broadcast('config', config);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // --- pages ---
+  if (p === '/' ) return serveStatic(res, 'index.html');
+  if (p === '/admin') return serveStatic(res, 'admin.html');
+  return serveStatic(res, p.slice(1));
+});
+
+server.on('error', err => {
+  if (err.code === 'EADDRINUSE') {
+    console.log('');
+    console.log(`  PROBLEM: another program on this computer is already using port ${PORT}.`);
+    console.log('  Fix: create a file named port.txt in this folder containing a different');
+    console.log('  number (for example 8123), then start Dental Flow again.');
+    console.log('  Remember to update the bookmarks on the other computers to the new number.');
+  } else {
+    console.log('');
+    console.log('  PROBLEM: Dental Flow could not start: ' + err.message);
+  }
+  process.exit(1);
+});
+
+server.listen(PORT, () => {
+  const nets = require('os').networkInterfaces();
+  const addrs = [];
+  for (const list of Object.values(nets))
+    for (const n of list) if (n.family === 'IPv4' && !n.internal) addrs.push(n.address);
+  console.log('');
+  console.log('  Dental Flow is running.');
+  console.log(`  On this computer:  http://localhost:${PORT}`);
+  for (const a of addrs) console.log(`  Other computers:   http://${a}:${PORT}`);
+  console.log('');
+  console.log('  Leave this window open. Press Ctrl+C to stop.');
+});

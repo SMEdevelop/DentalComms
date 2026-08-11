@@ -7,8 +7,8 @@
 // Keep these numbers in step with src\version.h. package.bat parses the
 // FileVersion string below to name the zip, so it is the authoritative copy.
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,7,0,0
-PRODUCTVERSION 0,7,0,0
+FILEVERSION 0,7,1,0
+PRODUCTVERSION 0,7,1,0
 FILEFLAGSMASK 0x3fL
 // VS_FF_PRERELEASE: this is beta 0.7, and Windows will say so.
 FILEFLAGS VS_FF_PRERELEASE
@@ -22,12 +22,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",     "SMEdevelop"
             VALUE "FileDescription", "Dental Flow - intraoffice messaging server"
-            VALUE "FileVersion",     "0.7.0.0"
+            VALUE "FileVersion",     "0.7.1.0"
             VALUE "InternalName",    "DentalFlow"
             VALUE "LegalCopyright",  "Copyright (c) 2026 SMEdevelop. All rights reserved."
             VALUE "OriginalFilename","DentalFlow.exe"
             VALUE "ProductName",     "Dental Flow"
-            VALUE "ProductVersion",  "0.7.0.0 beta"
+            VALUE "ProductVersion",  "0.7.1.0 beta"
         END
     END
     BLOCK "VarFileInfo"

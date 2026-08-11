@@ -14,6 +14,7 @@
 #include "routes.h"
 #include "state.h"
 #include "util.h"
+#include "version.h"
 
 namespace {
 
@@ -124,7 +125,7 @@ int main() {
     g_hub.start(cfg);
     SetConsoleCtrlHandler(onConsoleSignal, TRUE);
 
-    std::printf("\n  Dental Flow is running.\n");
+    std::printf("\n  Dental Flow %s is running.\n", DF_VERSION_STRING);
     std::printf("  On this computer:  http://localhost:%d\n", port);
     if (localOnly) {
         // Say plainly that staff cannot connect, and why, rather than letting

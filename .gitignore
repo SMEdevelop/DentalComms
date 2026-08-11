@@ -17,3 +17,7 @@
 
 # Optional local port override (see the README).
 /port.txt
+
+# Superseded builds kept locally for rollback and comparison. Binaries, and
+# not part of the current source tree - see archive/*/README.txt.
+/archive/

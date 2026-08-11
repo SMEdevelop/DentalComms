@@ -36,15 +36,18 @@ any web browser.
 1. **Pick one Windows computer to be the "server."** Any office computer that
    stays on during the day works. Everyone's messages flow through it.
 
-2. **Start Dental Flow:** double-click `DentalFlow.exe`.
+2. **Unzip the whole folder**, then **double-click `DentalFlow.exe`** inside it.
 
    A window opens saying *"Dental Flow is running"* and shows two web addresses.
    **Leave that window open** — closing it turns Dental Flow off.
 
-   > There is nothing to install first. Dental Flow is a single program with no
-   > other requirements. If Windows Firewall asks whether to allow it on your
-   > network the first time, click **Allow** — staff computers can't reach it
-   > otherwise.
+   > There is nothing to install first, and no Node.js or anything else to
+   > download. Keep the folder together though: the `.dll` files next to
+   > `DentalFlow.exe` are part of the program and it will not start without
+   > them, so unzip the folder rather than dragging just the `.exe` out of it.
+   >
+   > If Windows Firewall asks whether to allow it on your network the first
+   > time, click **Allow** — staff computers can't reach it otherwise.
 
 3. **On every staff computer**, open a web browser (Chrome, Edge, Safari — any)
    and type in the *"Other computers"* address shown in that window, something
@@ -209,18 +212,31 @@ byte-for-byte the same `public/` folder, and the server speaks the identical
 API, so nothing on staff computers needed touching and `data/config.json` from
 the Node version is read as-is.
 
-Building needs a C++17 compiler. If you don't have one:
+Building needs the Microsoft C++ compiler (MSVC). If you don't have it:
 
 ```bash
-winget install BrechtSanders.WinLibs.POSIX.UCRT
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 ```
 
-Then:
+That is the compiler only — no Visual Studio IDE. The scripts find it by
+themselves through `vswhere`, so there is no need to open a Developer Command
+Prompt first:
 
 ```bash
 build.bat        # produces DentalFlow.exe
 run_tests.bat    # 159 checks over every non-networking part
+package.bat      # the zip that goes to the office, in dist\
 ```
+
+As of beta 0.7 the build links the C++ runtime dynamically (`/MD`), so
+`DentalFlow.exe` needs `msvcp140.dll`, `vcruntime140.dll` and
+`vcruntime140_1.dll` beside it. `package.bat` puts them in the zip.
+
+**Never copy the bare .exe to a front desk machine.** It starts here because
+this machine has Visual Studio on it and those DLLs are in `System32`; on a
+machine that has never had Visual Studio it dies immediately with a dialog
+naming the missing DLL, before it prints anything at all. Always send the zip
+`package.bat` makes — unzip it and double-click, still nothing to install.
 
 The code is laid out as:
 

@@ -2,30 +2,39 @@
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-set "GPP="
-where g++ >nul 2>&1 && set "GPP=g++"
-if "%GPP%"=="" (
-  for %%D in (
-    "%LOCALAPPDATA%\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin"
-    "C:\msys64\ucrt64\bin"
-    "C:\mingw64\bin"
-  ) do (
-    if exist "%%~D\g++.exe" ( set "PATH=%%~D;!PATH!" & set "GPP=g++" & goto :found )
-  )
-)
-:found
-if "%GPP%"=="" ( echo  ERROR: no C++ compiler found - see build.bat & exit /b 1 )
+rem ---- locate the Microsoft C++ compiler (same dance as build.bat) ------
+where cl.exe >nul 2>&1
+if not errorlevel 1 goto :havecl
+
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" goto :nocompiler
+
+set "VCVARS="
+for /f "usebackq tokens=*" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%I\VC\Auxiliary\Build\vcvars64.bat"
+if not exist "%VCVARS%" goto :nocompiler
+call "%VCVARS%" >nul 2>&1
+where cl.exe >nul 2>&1
+if errorlevel 1 goto :nocompiler
+:havecl
 
 if not exist build mkdir build
+if not exist build\obj-test mkdir build\obj-test
 
 echo  Building the self-test...
-g++ -std=c++17 -O1 -DUNICODE -D_UNICODE -D_WIN32_WINNT=0x0A00 -Isrc ^
+cl /nologo /std:c++17 /O1 /EHsc /MD /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX ^
+  /D_WIN32_WINNT=0x0A00 /D_CRT_SECURE_NO_WARNINGS /D_WINSOCK_DEPRECATED_NO_WARNINGS ^
+  /Isrc /Fobuild\obj-test\ /Fdbuild\obj-test\ ^
   tests\selftest.cpp src\routes.cpp src\state.cpp src\config.cpp ^
   src\network.cpp src\http.cpp src\json.cpp src\util.cpp ^
-  -o build\selftest.exe ^
-  -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -luuid
+  /Febuild\selftest.exe ^
+  /link /INCREMENTAL:NO ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib
 if errorlevel 1 ( echo  BUILD FAILED & exit /b 1 )
 
 echo.
 build\selftest.exe
 exit /b %errorlevel%
+
+:nocompiler
+echo  ERROR: no C++ compiler found - see build.bat
+exit /b 1

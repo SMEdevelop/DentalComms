@@ -19,6 +19,22 @@ rem
 rem  data\ is deliberately NOT packaged. config.json holds one office's own
 rem  station names and settings; Dental Flow writes a fresh one with the
 rem  defaults on first start.
+rem
+rem  Signing is optional and off unless you point it at a certificate. Set
+rem  ONE of these before running:
+rem
+rem      set DENTALFLOW_SIGN_PFX=C:\path\to\cert.pfx
+rem      set DENTALFLOW_SIGN_PASS=...            (optional)
+rem
+rem  or, for anything that is not a plain .pfx - a hardware token, or a cloud
+rem  service such as Azure Artifact Signing (formerly Trusted Signing) - give a
+rem  command that takes the file to sign as its one argument:
+rem
+rem      set DENTALFLOW_SIGN_CMD=powershell -File packaging\sign.ps1
+rem
+rem  packaging\sign.ps1 is a ready-made script for exactly that. Signing is
+rem  worth doing here: an unsigned exe makes SmartScreen warn the one person
+rem  setting this up, and every rebuild starts that reputation from zero.
 
 echo.
 echo  Packaging Dental Flow...
@@ -80,6 +96,23 @@ if errorlevel 1 (
   echo  Packaging stopped: the build failed.
   exit /b 1
 )
+
+rem ---- locate signtool, if we might need it ---------------------------
+set "SIGNTOOL="
+if defined DENTALFLOW_SIGN_PFX (
+  for /f "delims=" %%S in ('where signtool.exe 2^>nul') do set "SIGNTOOL=%%S"
+  if "!SIGNTOOL!"=="" (
+    for /f "delims=" %%S in ('dir /b /s /o-n "%ProgramFiles(x86)%\Windows Kits\10\bin\*\x64\signtool.exe" 2^>nul') do (
+      if "!SIGNTOOL!"=="" set "SIGNTOOL=%%S"
+    )
+  )
+)
+
+rem ---- sign the executable -------------------------------------------
+rem  Before it is copied into the staging folder, so the zip carries the
+rem  signed copy rather than the bare build output.
+call :sign "DentalFlow.exe"
+if errorlevel 1 exit /b 1
 
 if not exist dist mkdir dist
 
@@ -158,13 +191,48 @@ echo.
 echo  ---------------------------------------------------------------
 dir /b dist\*.zip 2>nul
 echo  ---------------------------------------------------------------
-echo.
-echo  NOT SIGNED. Windows SmartScreen will warn the first person who runs
-echo  this. Right-click - Properties - Unblock, or click "More info" then
-echo  "Run anyway", is the way through it.
+if not defined DENTALFLOW_SIGN_PFX if not defined DENTALFLOW_SIGN_CMD (
+  echo.
+  echo  NOT SIGNED. Windows SmartScreen will warn the first person who runs
+  echo  this. Right-click - Properties - Unblock, or click "More info" then
+  echo  "Run anyway", is the way through it.
+  echo  See the top of this script for how to turn signing on.
+)
 echo.
 exit /b 0
 
 :nocompiler
 echo  ERROR: no Microsoft C++ compiler found - see build.bat
 exit /b 1
+
+rem ---------------------------------------------------------------------
+rem  :sign <file>   - signs in place, or does nothing if no cert is set up
+rem ---------------------------------------------------------------------
+:sign
+if defined DENTALFLOW_SIGN_CMD (
+  echo  Signing %~nx1 ...
+  call %DENTALFLOW_SIGN_CMD% "%~1"
+  if errorlevel 1 (
+    echo  ERROR: signing %~nx1 failed.
+    exit /b 1
+  )
+  exit /b 0
+)
+if not defined DENTALFLOW_SIGN_PFX exit /b 0
+if "!SIGNTOOL!"=="" (
+  echo  ERROR: DENTALFLOW_SIGN_PFX is set but signtool.exe was not found.
+  echo         Install the Windows SDK, or use DENTALFLOW_SIGN_CMD instead.
+  exit /b 1
+)
+echo  Signing %~nx1 ...
+set "PFXPASS="
+if defined DENTALFLOW_SIGN_PASS set "PFXPASS=/p "%DENTALFLOW_SIGN_PASS%""
+rem  /tr + /td timestamp the signature, so it stays valid after the
+rem  certificate itself expires.
+"!SIGNTOOL!" sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com ^
+  /f "%DENTALFLOW_SIGN_PFX%" !PFXPASS! "%~1"
+if errorlevel 1 (
+  echo  ERROR: signing %~nx1 failed.
+  exit /b 1
+)
+exit /b 0

@@ -238,6 +238,34 @@ machine that has never had Visual Studio it dies immediately with a dialog
 naming the missing DLL, before it prints anything at all. Always send the zip
 `package.bat` makes — unzip it and double-click, still nothing to install.
 
+### Signing
+
+`package.bat` signs nothing unless you point it at a certificate, and says so
+when it hasn't. Set one of:
+
+```bash
+set DENTALFLOW_SIGN_PFX=C:\path\to\cert.pfx
+set DENTALFLOW_SIGN_PASS=...
+
+rem or, for a hardware token or a cloud signing service, a command that
+rem takes the file to sign as its only argument:
+set DENTALFLOW_SIGN_CMD=powershell -File packaging\sign.ps1
+```
+
+The exe is signed before it goes into the zip, and timestamped so the
+signature outlives the certificate. A signing command that fails stops
+packaging outright rather than quietly shipping an unsigned build.
+
+Worth doing even for one office: unsigned, whoever sets this up meets
+SmartScreen's *"Windows protected your PC"* box, and every rebuild starts that
+reputation again from zero. `packaging\sign.ps1` drives
+[Azure Artifact Signing](https://azure.microsoft.com/en-us/products/artifact-signing)
+(formerly Trusted Signing) — roughly $10/month, no hardware token, with an
+individual-developer path if you aren't signing as a registered company. Its
+header has the setup. Note that signing does **not** silence SmartScreen
+immediately; reputation builds with download volume, and
+[EV certificates no longer grant it by default](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+
 The code is laid out as:
 
 ```

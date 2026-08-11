@@ -50,17 +50,27 @@ any web browser.
    > time, click **Allow** — staff computers can't reach it otherwise.
 
 3. **On every staff computer**, open a web browser (Chrome, Edge, Safari — any)
-   and type in the *"Other computers"* address shown in that window, something
-   like `http://192.168.1.25:3272`. **Bookmark it** and drag the bookmark to
-   the desktop or bookmarks bar so staff can open it with one click.
+   and type in one of the *"Other computers"* addresses shown in that window.
+   **Bookmark it** and drag the bookmark to the desktop or bookmarks bar so
+   staff can open it with one click.
 
-   > **Tip — use the computer's name instead of numbers.** Router restarts can
-   > change a computer's number address, silently breaking bookmarks. If the
-   > server computer is named, say, `RECEPTION-PC`, bookmark
-   > `http://RECEPTION-PC:3272` instead — the name keeps working even when the
-   > number changes. (Find the name under Settings → System → About on the
-   > server computer.) Alternatively, ask whoever manages your router to
-   > "reserve" the server's IP address.
+   The window offers three ways in, and all of them work:
+
+   ```
+     On this computer:  http://localhost:3272
+     Other computers:   http://RECEPTION-PC:3272
+                        http://192.168.1.25:3272
+   ```
+
+   > **Bookmark the name, not the number.** Router restarts can change a
+   > computer's number address, silently breaking every bookmark in the office
+   > at once — and it looks like Dental Flow has died rather than like the
+   > address moved. `http://RECEPTION-PC:3272` keeps working when the number
+   > changes, which is why it's listed first. Alternatively, ask whoever
+   > manages your router to "reserve" the server's IP address.
+   >
+   > `localhost` only works *on the server computer itself*. It's there so
+   > whoever set it up can check it immediately, not for staff machines.
 
 4. Each computer will ask **"Which station is this computer at?"** — tap the
    right one. That's it; it's remembered from then on.
@@ -268,7 +278,7 @@ Prompt first:
 
 ```bash
 build.bat        # produces DentalFlow.exe
-run_tests.bat    # 186 checks over every non-networking part
+run_tests.bat    # 190 checks over every non-networking part
 package.bat      # the zip that goes to the office, in dist\
 ```
 

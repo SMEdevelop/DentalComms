@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "config.h"
 #include "network.h"
@@ -140,10 +141,38 @@ int main() {
             "  profile to Private, then restart Dental Flow.\n",
             on::profileName(profile), on::profileName(profile));
     } else {
-        for (const auto& ip : on::localIPv4())
-            std::printf("  Other computers:   http://%s:%d\n", ip.c_str(), port);
+        // The computer's own name goes first, and is the one to bookmark: it
+        // keeps working when the router hands this machine a different number
+        // after a restart, which is the failure that breaks every bookmark in
+        // the office at once and looks like Dental Flow having died.
+        //
+        // Nothing else had to change for this to work - hostIsOurs() already
+        // accepts this computer's name, and any .local or .lan form of it.
+        std::vector<std::string> ways;
+        const std::string me = computerName();
+        if (!me.empty()) ways.push_back(me);
+        for (const auto& ip : on::localIPv4()) ways.push_back(ip);
+
+        if (ways.empty()) {
+            // Every address was filtered out as unreachable and the machine
+            // will not say what it is called. Rare, and better admitted than
+            // papered over with a heading and nothing under it.
+            std::printf(
+                "  Other computers:   (this computer has no network address "
+                "to offer)\n");
+        }
+        for (size_t i = 0; i < ways.size(); ++i) {
+            std::printf("%s http://%s:%d\n",
+                        i == 0 ? "  Other computers:  " : "                    ",
+                        ways[i].c_str(), port);
+        }
         std::printf("\n  Network: %s - staff computers can connect.\n",
                     on::profileName(profile));
+        if (!me.empty() && ways.size() > 1) {
+            std::printf(
+                "  Bookmark the first one. The name keeps working even if the\n"
+                "  router gives this computer a different number later.\n");
+        }
     }
     std::printf("\n  Leave this window open. Press Ctrl+C to stop.\n\n");
     std::fflush(stdout);

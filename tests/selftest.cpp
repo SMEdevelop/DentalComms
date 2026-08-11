@@ -725,6 +725,25 @@ int main() {
         std::string listed;
         for (const auto& ip : ips) listed += (listed.empty() ? "" : ", ") + ip;
         note("this computer would offer: " + (listed.empty() ? "(none)" : listed));
+
+        // The startup window offers three ways in: localhost, this computer's
+        // name, and each address above. Every one of them has to be a name the
+        // server will actually answer to - printing an address that is then
+        // refused with "Dental Flow does not answer to that address" is worse
+        // than not printing it, because it looks like the program is broken.
+        const std::vector<std::string> none;
+        const std::string me = computerName();
+        check(!me.empty(), "this computer knows what it is called");
+        check(on::hostIsOurs("localhost:3272", "127.0.0.1", me, none),
+              "localhost, the first thing it offers, is answered");
+        check(on::hostIsOurs(me + ":3272", "192.168.1.25", me, none),
+              "the computer name it offers is answered");
+        bool everyAddressAnswered = true;
+        for (const auto& ip : ips)
+            if (!on::hostIsOurs(ip + ":3272", ip, me, none))
+                everyAddressAnswered = false;
+        check(everyAddressAnswered,
+              "and so is every address it offers, reached on that address");
     }
 
     // ---------------------------------------------------------------------

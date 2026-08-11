@@ -38,8 +38,9 @@ any web browser.
 
 2. **Unzip the whole folder**, then **double-click `DentalFlow.exe`** inside it.
 
-   A window opens saying *"Dental Flow is running"* and shows two web addresses.
-   **Leave that window open** — closing it turns Dental Flow off.
+   A window opens saying *"Dental Flow is running"* and lists the web addresses
+   it can be reached at. **Leave that window open** — closing it turns Dental
+   Flow off.
 
    > There is nothing to install first, and no Node.js or anything else to
    > download. Keep the folder together though: the `.dll` files next to

@@ -276,37 +276,89 @@ std::string localAddressOf(SOCKET s) {
     return ip;
 }
 
+bool looksVirtualAdapter(const std::string& nameOrDescription) {
+    // Matched against both the friendly name and the description, because
+    // which one carries the giveaway varies by product. "vEthernet" alone
+    // covers Hyper-V and WSL, which is how a 172.31.x.x address turns up on
+    // an ordinary office PC that has never knowingly run a virtual machine.
+    static const char* kMarkers[] = {
+        "vethernet", "hyper-v", "virtualbox", "vmware", "wsl", "docker",
+        "loopback", "tap-windows", "tailscale", "zerotier", "npcap",
+        "bluetooth",
+    };
+    for (const char* m : kMarkers)
+        if (icontains(nameOrDescription, m)) return true;
+    return false;
+}
+
+bool isLinkLocalIPv4(const std::string& ip) {
+    return ip.rfind("169.254.", 0) == 0;
+}
+
 std::vector<std::string> localIPv4() {
-    std::vector<std::string> out;
+    std::vector<std::string> real;      // worth showing the office
+    std::vector<std::string> fallback;  // shown only if nothing else survives
+
     ULONG size = 15000;
     std::vector<BYTE> buf(size);
     auto* table = (IP_ADAPTER_ADDRESSES*)buf.data();
-    ULONG rc = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST |
-                                                 GAA_FLAG_SKIP_MULTICAST |
-                                                 GAA_FLAG_SKIP_DNS_SERVER,
-                                    nullptr, table, &size);
+    // INCLUDE_GATEWAYS is what fills in FirstGatewayAddress below; without it
+    // the field is simply never populated and every adapter looks gatewayless.
+    const ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                        GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_GATEWAYS;
+    ULONG rc = GetAdaptersAddresses(AF_INET, flags, nullptr, table, &size);
     if (rc == ERROR_BUFFER_OVERFLOW) {
         buf.resize(size);
         table = (IP_ADAPTER_ADDRESSES*)buf.data();
-        rc = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST |
-                                               GAA_FLAG_SKIP_MULTICAST |
-                                               GAA_FLAG_SKIP_DNS_SERVER,
-                                  nullptr, table, &size);
+        rc = GetAdaptersAddresses(AF_INET, flags, nullptr, table, &size);
     }
-    if (rc != NO_ERROR) return out;
+    if (rc != NO_ERROR) return real;
 
     for (auto* a = table; a; a = a->Next) {
         if (a->OperStatus != IfOperStatusUp) continue;
         if (a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+        if (a->IfType == IF_TYPE_TUNNEL) continue;
+
+        const std::string friendly =
+            a->FriendlyName ? narrow(a->FriendlyName) : std::string();
+        const std::string desc =
+            a->Description ? narrow(a->Description) : std::string();
+
+        // Two independent signals, either of which marks an adapter as
+        // internal-only:
+        //
+        //  - its name says so, which catches the named products above;
+        //  - it has no default gateway, which catches the ones it doesn't.
+        //    A virtual switch has none because this computer IS the gateway
+        //    for it, whereas anything reaching a real office network was
+        //    given a router to talk through.
+        const bool virtualByName =
+            looksVirtualAdapter(friendly) || looksVirtualAdapter(desc);
+        const bool noGateway = a->FirstGatewayAddress == nullptr;
+
         for (auto* u = a->FirstUnicastAddress; u; u = u->Next) {
             if (u->Address.lpSockaddr->sa_family != AF_INET) continue;
             auto* sa = (sockaddr_in*)u->Address.lpSockaddr;
             char ip[INET_ADDRSTRLEN] = {0};
-            if (inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip)))
-                out.emplace_back(ip);
+            if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip))) continue;
+
+            // Never worth printing under any circumstance: nothing is on the
+            // other end of one of these.
+            if (isLinkLocalIPv4(ip)) continue;
+
+            if (virtualByName || noGateway)
+                fallback.emplace_back(ip);
+            else
+                real.emplace_back(ip);
         }
     }
-    return out;
+
+    // The gateway test is the one that could be wrong: an office running a
+    // bare switch with static addresses and no router has no gateway either,
+    // and hiding its only address would leave nobody able to reach the server.
+    // So a filter that removes everything is treated as a filter that was
+    // mistaken, and the unfiltered list is handed back instead.
+    return real.empty() ? fallback : real;
 }
 
 }  // namespace on

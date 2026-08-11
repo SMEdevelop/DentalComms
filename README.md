@@ -224,6 +224,27 @@ Saving from the Settings page leaves them alone.
 | "Could not send" message | The server computer is off or the window was closed — restart Dental Flow there. |
 | Wrong station name on a computer | Tap the station name in the top-right corner and pick again. |
 | Staff computers can't reach it, but the server page works | Two possibilities. If the window says *Public*, see "Which networks it will answer on" above. Otherwise Windows Firewall is blocking it — allow `DentalFlow.exe` on private networks. |
+| An address in the window doesn't work from other computers | Use another one it lists. Dental Flow already hides the addresses it knows are unreachable (see below), but it cannot always tell. |
+
+### Which addresses it offers you
+
+The *"Other computers"* lines are the addresses staff can bookmark. Dental Flow
+leaves out the ones that would only waste your time:
+
+- **Virtual adapters.** A PC with Hyper-V, WSL, Docker, VirtualBox or VMware on
+  it grows extra network interfaces — typically `172.x.x.x` — that exist only
+  inside that computer. Nothing on your office network can reach them.
+- **`169.254.x.x` addresses.** Windows invents one of these when an adapter
+  asked for an address and nothing answered. It reaches nothing.
+
+It decides by adapter name and by whether the adapter has a router to talk
+through. If that filtering would leave *no* addresses at all — an office
+running a bare switch with fixed addresses and no router, say — it shows
+everything instead, on the grounds that an awkward list beats an empty one.
+
+None of this changes what Dental Flow listens on. It still accepts connections
+on every interface when the network profile allows it; this only affects which
+addresses it *suggests*.
 
 ---
 
@@ -247,7 +268,7 @@ Prompt first:
 
 ```bash
 build.bat        # produces DentalFlow.exe
-run_tests.bat    # 169 checks over every non-networking part
+run_tests.bat    # 186 checks over every non-networking part
 package.bat      # the zip that goes to the office, in dist\
 ```
 

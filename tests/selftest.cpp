@@ -680,6 +680,54 @@ int main() {
     }
 
     // ---------------------------------------------------------------------
+    section("Which addresses the office is told to use");
+    {
+        // Adapters that exist only inside this computer. Offering one of these
+        // as the address to bookmark sends someone chasing a connection that
+        // can never work.
+        check(on::looksVirtualAdapter("vEthernet (Default Switch)"),
+              "a Hyper-V switch is virtual");
+        check(on::looksVirtualAdapter("vEthernet (WSL (Hyper-V firewall))"),
+              "so is the WSL one");
+        check(on::looksVirtualAdapter("VirtualBox Host-Only Network"),
+              "so is VirtualBox");
+        check(on::looksVirtualAdapter("VMware Network Adapter VMnet1"),
+              "so is VMware");
+        check(on::looksVirtualAdapter("Bluetooth Network Connection"),
+              "so is a Bluetooth link");
+        check(on::looksVirtualAdapter("VETHERNET (WSL)"),
+              "and the test does not care about capitals");
+
+        // The ones a dental office actually connects through.
+        check(!on::looksVirtualAdapter("Wi-Fi"), "Wi-Fi is real");
+        check(!on::looksVirtualAdapter("Ethernet"), "Ethernet is real");
+        check(!on::looksVirtualAdapter("Realtek PCIe GbE Family Controller"),
+              "and so is a plain network card");
+        check(!on::looksVirtualAdapter("Intel(R) Wi-Fi 6 AX201 160MHz"),
+              "and a plain wireless card");
+
+        // 169.254.x.x means the adapter asked for an address and nothing
+        // replied. It reaches nothing, so it is never worth printing.
+        check(on::isLinkLocalIPv4("169.254.13.153"), "169.254 is link-local");
+        check(on::isLinkLocalIPv4("169.254.0.1"), "so is the bottom of it");
+        check(!on::isLinkLocalIPv4("192.168.4.132"), "a home LAN address is not");
+        check(!on::isLinkLocalIPv4("172.31.176.1"), "nor is a 172 address");
+        check(!on::isLinkLocalIPv4("169.253.1.1"), "nor is a near miss");
+        check(!on::isLinkLocalIPv4("10.0.0.1"), "nor is a 10.x address");
+
+        // Whatever this machine happens to have, the rule that matters is that
+        // nothing useless is ever offered to the office.
+        const auto ips = on::localIPv4();
+        bool anyLinkLocal = false;
+        for (const auto& ip : ips)
+            if (on::isLinkLocalIPv4(ip)) anyLinkLocal = true;
+        check(!anyLinkLocal, "no link-local address is offered to the office");
+        std::string listed;
+        for (const auto& ip : ips) listed += (listed.empty() ? "" : ", ") + ip;
+        note("this computer would offer: " + (listed.empty() ? "(none)" : listed));
+    }
+
+    // ---------------------------------------------------------------------
     section("How alerts announce themselves");
     {
         on::Config c = on::Config::defaults();

@@ -87,7 +87,24 @@ void netCleanup();
 // deciding what to answer.
 SOCKET listenOn(int port, bool localOnly, std::string& error, bool& portInUse);
 
+// The addresses to put in front of the office - the ones a staff computer
+// could actually type into a browser. Virtual adapters are left out: a machine
+// with Hyper-V, WSL or Docker on it grows extra 172.x.x.x interfaces whose
+// addresses reach nothing but the host itself, and offering one of those as
+// "the address to bookmark" sends somebody chasing a connection that can never
+// work. So does a 169.254.x.x address, which means the adapter asked for a
+// number and nothing answered.
 std::vector<std::string> localIPv4();
+
+// The two judgements localIPv4() makes, exposed so they can be tested without
+// needing a machine that happens to have a virtual switch on it.
+
+// Names Windows gives adapters that exist only inside this computer.
+bool looksVirtualAdapter(const std::string& nameOrDescription);
+
+// 169.254.0.0/16 - the address Windows invents when no DHCP server replies.
+// Reaches nothing beyond the same dead segment, so it is never worth printing.
+bool isLinkLocalIPv4(const std::string& ip);
 
 // The address on this computer that a given connection actually arrived on.
 // A name that resolves somewhere else cannot match it, which is what makes it

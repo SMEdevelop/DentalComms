@@ -299,3 +299,40 @@ body.is-offline { padding-top: 44px; }
   .note-row { flex-direction: column; }
   .note-row .btn-plain { padding: 12px; }
 }
+
+/* ---------------------------------------------------------------- flash
+   The optional screen flash for an arriving message, for a station whose
+   tablet is muted or whose room is too noisy for the chime.
+
+   Above every other layer (the offline banner, the highest, is 80) and
+   pointer-events: none throughout, so it tints the screen without ever
+   sitting between a finger and the "Got it" button.
+
+   The rate is deliberate. Anything faster than three flashes a second is the
+   threshold associated with photosensitive seizures, so this runs at two a
+   second and stops on its own after three - visible from across a room,
+   without strobing at anyone. */
+#flash {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--flash-color, #1c7ed6);
+}
+#flash.on { animation: df-flash .5s ease-in-out 3; }
+
+@keyframes df-flash {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: .4; }
+}
+
+/* Anyone who has asked their device for less motion gets a single steady
+   tint instead of a repeating flash: still unmistakable, nothing blinking. */
+@media (prefers-reduced-motion: reduce) {
+  #flash.on { animation: df-flash-steady 1.2s ease-in-out 1; }
+  @keyframes df-flash-steady {
+    0%, 100% { opacity: 0; }
+    20%, 80% { opacity: .3; }
+  }
+}

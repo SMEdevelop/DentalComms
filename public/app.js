@@ -42,7 +42,35 @@
     o.connect(g); g.connect(audioCtx.destination);
     o.start(when); o.stop(when + dur + 0.05);
   }
+  // ---------------- screen flash ----------------
+  let flashTimer = null;
+  function flashScreen(urgent) {
+    // Absent when talking to an older server; only an explicit false is off.
+    if (config.notifyFlash === false) return;
+    const el = $('flash');
+    if (!el) return;
+    el.style.setProperty('--flash-color', urgent ? '#c0392b' : '#1c7ed6');
+    // Removing the class and forcing a reflow before re-adding it is the only
+    // reliable way to replay a CSS animation that may still be running - a
+    // second message arriving mid-flash has to restart it, not be swallowed.
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('on'), 2000);
+  }
+
+  // Both halves of "announce this message", so the repeat timer below cannot
+  // drift into chiming without flashing or the other way round.
+  function announce(urgent) {
+    playChime(urgent);
+    flashScreen(urgent);
+  }
+
   function playChime(urgent) {
+    // config.notifySound may be absent when talking to an older server, and
+    // the chime always rang there, so only an explicit false silences it.
+    if (config.notifySound === false) return;
     if (!ensureAudio()) return;
     const t = audioCtx.currentTime;
     if (urgent) { beep(880, t, .18); beep(880, t + .22, .18); beep(1175, t + .44, .3); }
@@ -266,6 +294,11 @@
     if (!queue.length || !myStation) {
       clearInterval(chimeTimer);
       chimeTimer = null; chimingFor = null;
+      // Stop mid-flash rather than letting it finish: the message has been
+      // answered, and a screen still pulsing afterwards reads as another one.
+      clearTimeout(flashTimer);
+      const fl = $('flash');
+      if (fl) fl.classList.remove('on');
       $('alert').hidden = true;
       return;
     }
@@ -290,8 +323,8 @@
     if (sig.id !== chimingFor) {
       chimingFor = sig.id;
       clearInterval(chimeTimer);
-      playChime(sig.urgent);
-      chimeTimer = setInterval(() => playChime(sig.urgent), sig.urgent ? 3000 : 6000);
+      announce(sig.urgent);
+      chimeTimer = setInterval(() => announce(sig.urgent), sig.urgent ? 3000 : 6000);
     }
   }
 

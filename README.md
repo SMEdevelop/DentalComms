@@ -114,6 +114,29 @@ Tap **⚙️ Settings** in the top-right corner of any screen to rename the
 office, add/remove stations, and edit the quick-message buttons (text, color,
 and whether they're "urgent"). Changes appear on everyone's screens instantly.
 
+**Putting the buttons in the right order.** Each button has ▲ ▼ beside it in
+Settings. The order there is the order they appear on every screen, so the
+message you send twenty times a day belongs at the top. Reordering is instant
+for everyone — nobody needs to reload.
+
+**How alerts announce themselves.** Also in Settings, under *How alerts
+announce themselves*:
+
+| | |
+|---|---|
+| **Play a chime** | Repeats until someone taps *Got it*. Faster and higher for an urgent button. |
+| **Flash the screen** | Tints the whole screen a few times as the message arrives — red for urgent, blue otherwise. |
+
+Both are on to start with, and both apply to every station. The flash earns
+its keep where a tablet has been muted or a surgery is too noisy to hear the
+chime; the chime earns its keep when nobody is looking at the screen. Turn
+both off and a message still appears and waits, just silently.
+
+The flash deliberately pulses twice a second and stops after three — slow
+enough to stay clear of the flash rate associated with photosensitive
+seizures — and a station whose device is set to "reduce motion" gets a single
+steady tint instead.
+
 ## Tips
 
 - **Start automatically:** so Dental Flow comes back after a restart, press
@@ -224,7 +247,7 @@ Prompt first:
 
 ```bash
 build.bat        # produces DentalFlow.exe
-run_tests.bat    # 159 checks over every non-networking part
+run_tests.bat    # 169 checks over every non-networking part
 package.bat      # the zip that goes to the office, in dist\
 ```
 

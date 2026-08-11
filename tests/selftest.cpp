@@ -680,6 +680,66 @@ int main() {
     }
 
     // ---------------------------------------------------------------------
+    section("How alerts announce themselves");
+    {
+        on::Config c = on::Config::defaults();
+        check(c.notifySound && c.notifyFlash,
+              "a new office gets both the chime and the flash");
+
+        // Round trip through the file format.
+        c.notifyFlash = false;
+        js::Value v = c.toJson();
+        check(v.boolean("notifySound", false) && !v.boolean("notifyFlash", true),
+              "both settings are written out");
+
+        // A settings-page save carries them.
+        std::string err;
+        js::Value body = makeConfigBody(2, 2);
+        body["notifySound"] = false;
+        body["notifyFlash"] = true;
+        on::Config saved = on::Config::defaults();
+        check(saved.applyFromJson(body, err), "a save with both flags succeeds");
+        check(!saved.notifySound, "turning the chime off sticks");
+        check(saved.notifyFlash, "and the flash stays on independently");
+
+        // The case that matters: an admin page opened before this option
+        // existed posts no such keys. Reading those as "off" would mute the
+        // office the next time somebody renamed a room.
+        on::Config older = on::Config::defaults();
+        older.notifySound = true;
+        older.notifyFlash = false;
+        js::Value oldBody = makeConfigBody(2, 2);   // no notify* keys at all
+        check(older.applyFromJson(oldBody, err), "an older page can still save");
+        check(older.notifySound && !older.notifyFlash,
+              "a save that omits them changes neither");
+
+        // Reordering: the presets come back in exactly the order they arrived,
+        // because that order is the order of the buttons on every screen.
+        js::Value reordered = js::Value::object();
+        reordered["officeName"] = "Test Office";
+        reordered["stations"] = makeConfigBody(1, 1).find("stations") ?
+                                *makeConfigBody(1, 1).find("stations") :
+                                js::Value::array();
+        js::Value prs = js::Value::array();
+        for (const char* id : {"third", "first", "second"}) {
+            js::Value p = js::Value::object();
+            p["id"] = id;
+            p["label"] = std::string("Button ") + id;
+            p["color"] = "#112233";
+            prs.push(p);
+        }
+        reordered["presets"] = prs;
+        on::Config ord = on::Config::defaults();
+        check(ord.applyFromJson(reordered, err), "a reordered save succeeds");
+        check(ord.presets.size() == 3, "keeps every button");
+        if (ord.presets.size() == 3) {
+            check(ord.presets[0].id == "third" && ord.presets[1].id == "first" &&
+                      ord.presets[2].id == "second",
+                  "and keeps them in the order the page sent them");
+        }
+    }
+
+    // ---------------------------------------------------------------------
     section("Ids");
     {
         std::string a = on::newId(), b = on::newId();

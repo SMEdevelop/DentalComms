@@ -56,6 +56,14 @@ struct Config {
     int escalateAfterSeconds = 120;
     int expireAfterSeconds = 3600;
 
+    // How an arriving alert announces itself on the station receiving it.
+    // Both on by default, because either one alone has a way of being missed:
+    // sound is lost in a noisy surgery or on a tablet somebody muted, and a
+    // flash is lost on anyone not looking at the screen. Turning both off
+    // leaves the alert silent and still - it appears on screen and waits.
+    bool notifySound = true;
+    bool notifyFlash = true;
+
     // Names this server may be reached by, beyond localhost, this computer's
     // own name, and the address a connection actually arrived on. Only needed
     // when the office uses an alias its router hands out.

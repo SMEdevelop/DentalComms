@@ -82,6 +82,11 @@
 
 <div id="sound-hint" hidden>🔈 Tap anywhere once to turn on sounds</div>
 
+<!-- Screen flash for an arriving message. Sits above everything and ignores
+     the mouse entirely, so it can never come between a finger and the
+     "Got it" button. Does nothing unless switched on in Settings. -->
+<div id="flash" aria-hidden="true"></div>
+
 <!-- Shown whenever the live connection to the server is down, so nobody is
      looking at a screen that quietly stopped receiving messages. -->
 <div id="offline" hidden>⚠️ Not connected to Dental Flow — messages may not arrive. Trying to reconnect…</div>

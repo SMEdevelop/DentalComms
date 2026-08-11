@@ -162,6 +162,8 @@ js::Value Config::toJson() const {
     out["networks"] = networks.toJson();
     out["escalateAfterSeconds"] = escalateAfterSeconds;
     out["expireAfterSeconds"] = expireAfterSeconds;
+    out["notifySound"] = notifySound;
+    out["notifyFlash"] = notifyFlash;
     js::Value hosts = js::Value::array();
     for (const auto& h : allowedHosts) hosts.push(h);
     out["allowedHosts"] = hosts;
@@ -203,6 +205,15 @@ bool Config::applyFromJson(const js::Value& body, std::string& error) {
     next.expireAfterSeconds = expireAfterSeconds;
     next.allowedHosts = allowedHosts;
     next.officeName = clampUtf8(jsStringOr(body.find("officeName"), "Our Office"), 60);
+
+    // The settings page does send these, but a key that is absent must mean
+    // "carry it over", not "off". An admin page left open in a browser tab
+    // since before this option existed would otherwise mute the whole office
+    // the next time someone renamed a room.
+    next.notifySound = body.find("notifySound") ? jsTruthy(body.find("notifySound"))
+                                                : notifySound;
+    next.notifyFlash = body.find("notifyFlash") ? jsTruthy(body.find("notifyFlash"))
+                                                : notifyFlash;
 
     for (size_t i = 0; i < sts->arr.size() && i < 40; ++i) {
         const js::Value& s = sts->arr[i];
@@ -266,6 +277,10 @@ Config loadConfig() {
     if (const js::Value* nets = v.find("networks")) c.networks.applyFromJson(*nets);
     c.escalateAfterSeconds = clampSeconds(v.integer("escalateAfterSeconds", 120));
     c.expireAfterSeconds = clampSeconds(v.integer("expireAfterSeconds", 3600));
+    // Absent in files written before these existed, and on is what those
+    // offices had: the chime always rang.
+    c.notifySound = v.boolean("notifySound", true);
+    c.notifyFlash = v.boolean("notifyFlash", true);
     if (const js::Value* hosts = v.find("allowedHosts")) {
         for (const auto& h : hosts->arr) {
             const std::string name = lower(trim(h.asStr()));

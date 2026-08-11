@@ -35,6 +35,26 @@
     font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
   }
   .row .del:hover { background: #f9d9d9; }
+  /* Up/down buttons rather than drag-and-drop: these screens are tablets as
+     often as they are PCs, and dragging on a touchscreen fights with
+     scrolling the page. Two taps always work. */
+  .row .move {
+    display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+  }
+  .row .move button {
+    border: none; background: var(--line); color: var(--muted);
+    width: 30px; height: 20px; border-radius: 6px;
+    font-size: .7rem; line-height: 1; cursor: pointer; padding: 0;
+  }
+  .row .move button:hover:not(:disabled) { background: var(--blue); color: #fff; }
+  .row .move button:disabled { opacity: .35; cursor: default; }
+  .check-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    font-size: 1.05rem; cursor: pointer;
+  }
+  .check-row input[type=checkbox] {
+    width: 22px; height: 22px; flex-shrink: 0; cursor: pointer;
+  }
   .add-btn {
     border: 2px dashed var(--line); background: none; color: var(--muted);
     width: 100%; padding: 12px; border-radius: 10px;
@@ -73,9 +93,30 @@
   <div class="card">
     <h3>Quick-message buttons</h3>
     <p class="hint">The big buttons staff tap to send a message. Pick a color for each.
-       “Urgent” makes the chime louder and more frequent.</p>
+       “Urgent” makes the chime louder and more frequent.
+       Use ▲ ▼ to change the order they appear in — the top one here is the
+       first button on everyone’s screen.</p>
     <div id="presets"></div>
     <button class="add-btn" id="add-preset">＋ Add a button</button>
+  </div>
+
+  <div class="card">
+    <h3>How alerts announce themselves</h3>
+    <p class="hint">What happens on the screen that receives a message. This is
+       the same for every station.</p>
+    <label class="check-row">
+      <input type="checkbox" id="notify-sound">
+      <span>Play a chime until someone taps “Got it”</span>
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="notify-flash">
+      <span>Flash the screen when a message arrives</span>
+    </label>
+    <p class="hint" style="margin-top:12px;margin-bottom:0">
+      Flashing is worth leaving on where a tablet may be muted, or the room is
+      noisy. Turn both off and a message still appears on screen and waits —
+      it just does so quietly.
+    </p>
   </div>
 
   <button id="save" class="btn-big">Save changes</button>
@@ -115,10 +156,44 @@
     return row;
   }
 
+  // The order of the rows in the page IS the order of the buttons: save reads
+  // the DOM top to bottom, and the server keeps the array as it arrives. So
+  // moving a row is all reordering takes.
+  function refreshMoveButtons() {
+    const rows = [...$('presets').children];
+    rows.forEach((row, i) => {
+      const [up, down] = row.querySelectorAll('.move button');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === rows.length - 1;
+    });
+  }
+
+  function moveRow(row, delta) {
+    const parent = row.parentNode;
+    if (delta < 0 && row.previousElementSibling)
+      parent.insertBefore(row, row.previousElementSibling);
+    else if (delta > 0 && row.nextElementSibling)
+      parent.insertBefore(row.nextElementSibling, row);
+    refreshMoveButtons();
+    // Keep the button under the finger that just pressed it, so a row can be
+    // moved several places without hunting for it again after each tap.
+    const btn = row.querySelector(delta < 0 ? '.move button' : '.move button:last-child');
+    if (btn && !btn.disabled) btn.focus();
+  }
+
   function presetRow(p) {
     const row = document.createElement('div');
     row.className = 'row';
     row.dataset.id = p.id;
+    const move = document.createElement('div');
+    move.className = 'move';
+    const up = document.createElement('button');
+    up.type = 'button'; up.textContent = '▲'; up.title = 'Move up';
+    up.onclick = () => moveRow(row, -1);
+    const down = document.createElement('button');
+    down.type = 'button'; down.textContent = '▼'; down.title = 'Move down';
+    down.onclick = () => moveRow(row, +1);
+    move.append(up, down);
     const color = document.createElement('input');
     color.type = 'color'; color.value = p.color;
     const input = document.createElement('input');
@@ -131,15 +206,17 @@
     urgent.append(cb, document.createTextNode('Urgent'));
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '🗑'; del.title = 'Remove';
-    del.onclick = () => row.remove();
-    row.append(color, input, urgent, del);
+    del.onclick = () => { row.remove(); refreshMoveButtons(); };
+    row.append(move, color, input, urgent, del);
     return row;
   }
 
   $('add-station').onclick = () =>
     $('stations').appendChild(stationRow({ id: newId(), name: '' }));
-  $('add-preset').onclick = () =>
+  $('add-preset').onclick = () => {
     $('presets').appendChild(presetRow({ id: newId(), label: '', color: '#1c7ed6', urgent: false }));
+    refreshMoveButtons();
+  };
 
   $('save').onclick = async () => {
     const stations = [...$('stations').children]
@@ -161,7 +238,11 @@
     }
     const r = await fetch('/api/config', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ officeName, stations, presets })
+      body: JSON.stringify({
+        officeName, stations, presets,
+        notifySound: $('notify-sound').checked,
+        notifyFlash: $('notify-flash').checked
+      })
     });
     $('saved-msg').style.color = '';
     $('saved-msg').textContent = r.ok ? '✓ Saved — everyone’s screens are updated.' : 'Something went wrong. Try again.';
@@ -172,8 +253,12 @@
     const state = await (await fetch('/api/state')).json();
     config = state.config;
     $('office-input').value = config.officeName;
+    // Absent means an older server that predates these; on is what it did.
+    $('notify-sound').checked = config.notifySound !== false;
+    $('notify-flash').checked = config.notifyFlash !== false;
     for (const s of config.stations) $('stations').appendChild(stationRow(s));
     for (const p of config.presets) $('presets').appendChild(presetRow(p));
+    refreshMoveButtons();
   })();
 })();
 </script>

@@ -169,6 +169,7 @@ set "SRCSTAGE=dist\srcstage\DentalFlow-%FULLVER%"
 if exist "dist\srcstage" rmdir /s /q "dist\srcstage"
 mkdir "%SRCSTAGE%"
 xcopy /e /i /q /y "src"     "%SRCSTAGE%\src"     >nul
+if exist "packaging" xcopy /e /i /q /y "packaging" "%SRCSTAGE%\packaging" >nul
 xcopy /e /i /q /y "tests"   "%SRCSTAGE%\tests"   >nul
 xcopy /e /i /q /y "public"  "%SRCSTAGE%\public"  >nul
 xcopy /e /i /q /y ".vscode" "%SRCSTAGE%\.vscode" >nul

@@ -750,35 +750,39 @@ int main() {
     section("How alerts announce themselves");
     {
         on::Config c = on::Config::defaults();
-        check(c.notifySound && c.notifyFlash,
-              "a new office gets both the chime and the flash");
+        check(c.notifySound && c.notifyFlash && c.notifyTaskbar,
+              "a new office gets the chime, the flash and the taskbar blink");
 
         // Round trip through the file format.
         c.notifyFlash = false;
         js::Value v = c.toJson();
-        check(v.boolean("notifySound", false) && !v.boolean("notifyFlash", true),
-              "both settings are written out");
+        check(v.boolean("notifySound", false) && !v.boolean("notifyFlash", true) &&
+              v.boolean("notifyTaskbar", false),
+              "all three settings are written out");
 
         // A settings-page save carries them.
         std::string err;
         js::Value body = makeConfigBody(2, 2);
         body["notifySound"] = false;
         body["notifyFlash"] = true;
+        body["notifyTaskbar"] = false;
         on::Config saved = on::Config::defaults();
-        check(saved.applyFromJson(body, err), "a save with both flags succeeds");
+        check(saved.applyFromJson(body, err), "a save with all three flags succeeds");
         check(!saved.notifySound, "turning the chime off sticks");
         check(saved.notifyFlash, "and the flash stays on independently");
+        check(!saved.notifyTaskbar, "and the taskbar blink is its own switch");
 
-        // The case that matters: an admin page opened before this option
+        // The case that matters: an admin page opened before these options
         // existed posts no such keys. Reading those as "off" would mute the
         // office the next time somebody renamed a room.
         on::Config older = on::Config::defaults();
         older.notifySound = true;
         older.notifyFlash = false;
+        older.notifyTaskbar = false;
         js::Value oldBody = makeConfigBody(2, 2);   // no notify* keys at all
         check(older.applyFromJson(oldBody, err), "an older page can still save");
-        check(older.notifySound && !older.notifyFlash,
-              "a save that omits them changes neither");
+        check(older.notifySound && !older.notifyFlash && !older.notifyTaskbar,
+              "a save that omits them changes none of them");
 
         // Reordering: the presets come back in exactly the order they arrived,
         // because that order is the order of the buttons on every screen.

@@ -57,12 +57,15 @@ struct Config {
     int expireAfterSeconds = 3600;
 
     // How an arriving alert announces itself on the station receiving it.
-    // Both on by default, because either one alone has a way of being missed:
-    // sound is lost in a noisy surgery or on a tablet somebody muted, and a
-    // flash is lost on anyone not looking at the screen. Turning both off
-    // leaves the alert silent and still - it appears on screen and waits.
+    // All on by default, because each one alone has a way of being missed:
+    // sound is lost in a noisy surgery or on a tablet somebody muted, a flash
+    // is lost on anyone not looking at the screen, and both are lost on a
+    // station whose Dental Flow window is behind the practice software.
+    // Turning them all off leaves the alert silent and still - it appears on
+    // screen and waits.
     bool notifySound = true;
     bool notifyFlash = true;
+    bool notifyTaskbar = true;
 
     // Names this server may be reached by, beyond localhost, this computer's
     // own name, and the address a connection actually arrived on. Only needed

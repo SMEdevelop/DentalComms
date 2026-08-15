@@ -137,11 +137,32 @@ announce themselves*:
 |---|---|
 | **Play a chime** | Repeats until someone taps *Got it*. Faster and higher for an urgent button. |
 | **Flash the screen** | Tints the whole screen a few times as the message arrives — red for urgent, blue otherwise. |
+| **Blink the taskbar** | For a station whose Dental Flow window is behind something else: blinks its taskbar button and raises a notification from Windows. |
 
-Both are on to start with, and both apply to every station. The flash earns
-its keep where a tablet has been muted or a surgery is too noisy to hear the
-chime; the chime earns its keep when nobody is looking at the screen. Turn
-both off and a message still appears and waits, just silently.
+All three are on to start with, and all three apply to every station. The
+flash earns its keep where a tablet has been muted or a surgery is too noisy
+to hear the chime; the chime earns its keep when nobody is looking at the
+screen. Turn them all off and a message still appears and waits, just
+silently.
+
+**Getting the taskbar blink right.** It is aimed at the front desk, where
+Dental Flow spends the day behind the practice management software. Two things
+make it work properly on such a station:
+
+- Press **⧉ Pop out** once. A pop-out is its own window with its own taskbar
+  button, and blinking that button is the whole point. An ordinary tab shares
+  a taskbar button with every other tab, labelled by whichever one is on top,
+  so there is nothing of its own to blink.
+- Say **yes** to the notification permission the browser asks for on the first
+  click after this is switched on. That is what puts a real Windows
+  notification on screen when the browser is minimised altogether; clicking it
+  brings Dental Flow back to the front. Saying no costs only that — the button
+  and its icon still blink.
+
+The blinking stops the moment somebody clicks back into the window, on the
+grounds that the alert filling the screen has done its job by then, and taps
+*Got it* for real to clear it. A message waiting behind that one takes the
+blinking over.
 
 The flash deliberately pulses twice a second and stops after three — slow
 enough to stay clear of the flash rate associated with photosensitive

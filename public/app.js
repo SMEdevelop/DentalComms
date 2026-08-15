@@ -30,6 +30,7 @@
   document.addEventListener('pointerdown', () => {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if (audioCtx && audioCtx.state === 'running') $('sound-hint').hidden = true;
+    askToNotify();
   }, true);
 
   function beep(freq, when, dur) {
@@ -77,6 +78,144 @@
     else { beep(660, t, .25); beep(880, t + .28, .35); }
   }
 
+  // ---------------- taskbar attention ----------------
+  // For the station whose Dental Flow window is behind the practice software.
+  // The chime and the screen flash both assume somebody is in front of this
+  // window; when nobody is, the only place left to shout is the taskbar.
+  //
+  // A web page cannot flash a taskbar button the way a native program can -
+  // Windows has no such API for browsers. What it can do is drive the two
+  // things Windows draws on the reader's behalf: the window title, which is
+  // the taskbar button's label, and the icon. Blinking those blinks the
+  // button. That is why the pop-out button matters here - a pop-out (or an
+  // installed shortcut) is its own taskbar button showing its own title,
+  // whereas an ordinary tab is labelled by whichever tab is on top.
+  //
+  // The system notification is the other half, and the half that carries over
+  // a fully minimised browser: a real toast from the operating system, which
+  // raises this window when clicked.
+  let blinkTimer = null;
+  let blinkOn = false;
+  let attentionSig = null;      // the alert the taskbar is calling about
+  let askedToNotify = false;
+  const notes = new Map();      // signal id -> its system notification
+  const iconCache = {};
+  const iconLink = document.querySelector('link[rel="icon"]');
+  const baseIcon = iconLink ? iconLink.getAttribute('href') : null;
+
+  function normalTitle() {
+    return (myStation ? stationName(myStation) + ' — ' : '') +
+           (config.officeName || 'Dental Flow');
+  }
+
+  // A dot in the message's own color, drawn rather than shipped so it can
+  // match a button whose color the office changed in Settings.
+  function alertIcon(color) {
+    if (iconCache[color]) return iconCache[color];
+    try {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d');
+      g.fillStyle = color;
+      g.beginPath(); g.arc(32, 32, 31, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fff';
+      g.font = 'bold 46px system-ui, Segoe UI, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('!', 32, 35);
+      return (iconCache[color] = c.toDataURL('image/png'));
+    } catch {
+      return (iconCache[color] = baseIcon);   // canvas blocked: keep the icon
+    }
+  }
+
+  function paintAttention(on) {
+    const sig = attentionSig;
+    document.title = on && sig
+      ? '🔔 ' + (sig.note || sig.label) + ' — ' + stationName(sig.from)
+      : normalTitle();
+    if (iconLink && baseIcon)
+      iconLink.href = on && sig ? alertIcon(sig.color) : baseIcon;
+  }
+
+  // Asked on a real click, because Safari and Firefox refuse the prompt
+  // without one, and never a second time - a station that said no keeps the
+  // blinking title and icon, which need no permission from anybody.
+  function askToNotify() {
+    if (askedToNotify || config.notifyTaskbar === false) return;
+    // Settings has not arrived yet, and an office that switched this off
+    // should never see the prompt at all. It will be here within the moment
+    // it takes to open the stream, and the next click asks.
+    if (!config.stations.length) return;
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    askedToNotify = true;
+    try { Notification.requestPermission(); } catch { /* older signature */ }
+  }
+
+  function systemNotify(sig) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (notes.has(sig.id)) return;      // already announced, still unanswered
+    try {
+      const n = new Notification(stationName(sig.from) +
+                                 (sig.to === 'all' ? ' (to everyone)' : ''), {
+        body: sig.note || sig.label,
+        tag: 'dentalflow-' + sig.id,    // a repeat replaces, never stacks
+        icon: 'icon-192.png',
+        requireInteraction: true,       // stays up until it is dealt with
+        // The page's own chime is the office's sound and Settings decides
+        // whether it plays at all; a second sound from Windows would answer
+        // to nothing on that page.
+        silent: true
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+      notes.set(sig.id, n);
+    } catch { /* some browsers only allow these from a service worker */ }
+  }
+
+  // Safe to call as often as it takes: it starts nothing that is already
+  // running and announces nothing that has already been announced. The three
+  // ways it stops are the setting going off, the message being answered, and
+  // the reader coming back to a window whose screen the alert already fills.
+  function updateAttention() {
+    const want = config.notifyTaskbar !== false && !!attentionSig &&
+                 !document.hasFocus();
+    if (want) {
+      systemNotify(attentionSig);
+      if (!blinkTimer) {
+        blinkOn = true;
+        paintAttention(true);
+        blinkTimer = setInterval(() => paintAttention(blinkOn = !blinkOn), 900);
+      }
+    } else if (blinkTimer) {
+      clearInterval(blinkTimer);
+      blinkTimer = null;
+      paintAttention(false);
+    }
+  }
+
+  function callAttention(sig) {
+    // Whatever the taskbar was calling about before has been dealt with. Take
+    // its toast down rather than leaving a message somebody already answered
+    // sitting in the corner of the screen underneath the new one.
+    for (const [id, n] of notes) {
+      if (id !== sig.id) { try { n.close(); } catch {} notes.delete(id); }
+    }
+    attentionSig = sig;
+    updateAttention();
+  }
+
+  function clearAttention() {
+    attentionSig = null;
+    updateAttention();
+    for (const n of notes.values()) { try { n.close(); } catch {} }
+    notes.clear();
+  }
+
+  // Coming back to the window is as good as tapping Got it as far as the
+  // taskbar is concerned: the alert is on screen in front of them now.
+  window.addEventListener('focus', updateAttention);
+  window.addEventListener('blur', updateAttention);
+  document.addEventListener('visibilitychange', updateAttention);
+
   // ---------------- rendering ----------------
   function stationName(id) {
     if (id === 'all') return 'Everyone';
@@ -87,7 +226,10 @@
   function renderHeader() {
     $('office-name').textContent = config.officeName || 'Dental Flow';
     $('my-station-btn').textContent = myStation ? stationName(myStation) : 'Choose…';
-    document.title = (myStation ? stationName(myStation) + ' — ' : '') + (config.officeName || 'Dental Flow');
+    // Every message anyone sends redraws this. Writing the title here while
+    // the taskbar is blinking would land on whichever half of the blink was
+    // showing and stick there, so leave it to paintAttention until it stops.
+    if (!blinkTimer) document.title = normalTitle();
   }
 
   function otherStations() {
@@ -299,6 +441,7 @@
       clearTimeout(flashTimer);
       const fl = $('flash');
       if (fl) fl.classList.remove('on');
+      clearAttention();
       $('alert').hidden = true;
       return;
     }
@@ -325,7 +468,13 @@
       clearInterval(chimeTimer);
       announce(sig.urgent);
       chimeTimer = setInterval(() => announce(sig.urgent), sig.urgent ? 3000 : 6000);
+      // The taskbar follows the alert on top, so answering this one hands the
+      // blinking over to whatever was queued behind it rather than stopping.
+      callAttention(sig);
     }
+    // Outside that guard: this also has to notice the window being left, and
+    // the setting being switched off from the Settings page mid-alert.
+    updateAttention();
   }
 
   // ---------------- recent panel ----------------
@@ -333,6 +482,18 @@
     const list = $('recent-list');
     list.hidden = !list.hidden;
     $('recent-toggle').textContent = list.hidden ? 'Recent activity ▾' : 'Recent activity ▴';
+  };
+
+  // ---------------- the "pick more than one" tip ----------------
+  // Says its piece to a station on its first day and stays out of the way
+  // afterwards. Remembered per computer, alongside the station name, because
+  // that is what having seen it means here - one screen clearing the tip is
+  // not the rest of the office claiming to know it.
+  const TIP_KEY = 'dentalflow-tip-multi';
+  if (!localStorage.getItem(TIP_KEY)) $('grid-title').hidden = false;
+  $('grid-title-done').onclick = () => {
+    localStorage.setItem(TIP_KEY, '1');
+    $('grid-title').hidden = true;
   };
 
   // ---------------- connection state ----------------

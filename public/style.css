@@ -61,7 +61,18 @@ body {
 
 /* ---------- main grid ---------- */
 #main { max-width: 1050px; margin: 0 auto; padding: 26px 22px 130px; }
-#grid-title { font-size: 1.15rem; font-weight: 600; color: var(--muted); margin-bottom: 18px; }
+#grid-title {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  font-size: 1.15rem; font-weight: 600; color: var(--muted); margin-bottom: 18px;
+}
+#grid-title-done {
+  flex: none;
+  font-size: .95rem; font-weight: 700;
+  padding: 7px 16px; border-radius: 999px;
+  border: 2px solid var(--line); background: var(--card); color: var(--muted);
+  cursor: pointer;
+}
+#grid-title-done:hover { color: var(--green); border-color: var(--green); }
 
 .grid {
   display: grid;

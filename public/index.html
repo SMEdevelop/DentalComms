@@ -23,7 +23,12 @@
 </header>
 
 <main id="main">
-  <h2 id="grid-title">Tap the rooms you want to message — you can pick more than one</h2>
+  <!-- Worth saying to a station on its first day and not to one that has been
+       sending messages all year, so it clears for good on this computer. -->
+  <h2 id="grid-title" hidden>
+    <span>Tap the rooms you want to message — you can pick more than one</span>
+    <button id="grid-title-done" title="Hide this — it will not come back on this computer">✓ Got it</button>
+  </h2>
   <div id="station-grid" class="grid"></div>
 
   <section id="recent-panel">

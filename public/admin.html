@@ -112,9 +112,17 @@
       <input type="checkbox" id="notify-flash">
       <span>Flash the screen when a message arrives</span>
     </label>
+    <label class="check-row">
+      <input type="checkbox" id="notify-taskbar">
+      <span>Blink the taskbar when Dental Flow is behind another window</span>
+    </label>
     <p class="hint" style="margin-top:12px;margin-bottom:0">
       Flashing is worth leaving on where a tablet may be muted, or the room is
-      noisy. Turn both off and a message still appears on screen and waits —
+      noisy. Blinking the taskbar is for a station that works in another
+      program all day with Dental Flow behind it — use <strong>⧉ Pop out</strong>
+      there, so it has a taskbar button of its own to blink. The first message
+      after that asks the computer for permission to show notifications; say
+      yes. Turn all three off and a message still appears on screen and waits —
       it just does so quietly.
     </p>
   </div>
@@ -241,7 +249,8 @@
       body: JSON.stringify({
         officeName, stations, presets,
         notifySound: $('notify-sound').checked,
-        notifyFlash: $('notify-flash').checked
+        notifyFlash: $('notify-flash').checked,
+        notifyTaskbar: $('notify-taskbar').checked
       })
     });
     $('saved-msg').style.color = '';
@@ -256,6 +265,7 @@
     // Absent means an older server that predates these; on is what it did.
     $('notify-sound').checked = config.notifySound !== false;
     $('notify-flash').checked = config.notifyFlash !== false;
+    $('notify-taskbar').checked = config.notifyTaskbar !== false;
     for (const s of config.stations) $('stations').appendChild(stationRow(s));
     for (const p of config.presets) $('presets').appendChild(presetRow(p));
     refreshMoveButtons();

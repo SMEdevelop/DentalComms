@@ -7,10 +7,10 @@
 #pragma once
 
 #define DF_VERSION_MAJOR 0
-#define DF_VERSION_MINOR 7
-#define DF_VERSION_PATCH 2
+#define DF_VERSION_MINOR 8
+#define DF_VERSION_PATCH 0
 
 // Shown in the startup banner. "beta" is part of the string on purpose: the
 // person starting this in an office should be able to see at a glance that it
 // is not the finished thing.
-#define DF_VERSION_STRING "0.7.2 beta"
+#define DF_VERSION_STRING "0.8.0 beta"

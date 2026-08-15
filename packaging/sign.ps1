@@ -30,6 +30,8 @@
 #    a NuGet PACKAGE, not a dotnet tool - "dotnet tool install" will not find
 #    it. Since the service was rebranded the package is called
 #    Microsoft.ArtifactSigning.Client (it was Microsoft.Trusted.Signing.Client).
+#    The client also requires the .NET 8 x64 runtime and the Microsoft Visual
+#    C++ Redistributable x64 to be installed before it will load successfully.
 #    Download it and unpack it - a .nupkg is a .zip:
 #
 #        $v    = '1.0.128'
@@ -37,6 +39,11 @@
 #        $dest = "$env:LOCALAPPDATA\ArtifactSigningClient\$v"
 #        Invoke-WebRequest $url -OutFile "$env:TEMP\as.zip"
 #        Expand-Archive "$env:TEMP\as.zip" -DestinationPath $dest -Force
+#
+#    This script prefers the x64 signtool.exe from the Windows SDK, so the
+#    matching Azure.CodeSigning.Dlib.dll must be the one from the package's
+#    bin\x64 folder. Set TRUSTED_SIGNING_DLIB to that exact DLL path, for
+#    example: ...\microsoft.artifactsigning.client.$v\bin\x64\Azure.CodeSigning.Dlib.dll
 #
 #    That is one of the places this script looks. Anywhere else is fine too -
 #    just point TRUSTED_SIGNING_DLIB at the Azure.CodeSigning.Dlib.dll inside.

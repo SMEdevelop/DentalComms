@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up this computer — Dental Flow</title>
+<meta name="theme-color" content="#1c7ed6">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  :root { --blue:#1c7ed6; --ink:#1f2933; --muted:#647382; --line:#dfe4ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 64px; background:#f4f6f8; color:var(--ink);
+         font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 0 0 10px; }
+  .lede { color: var(--muted); margin: 0 0 26px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px;
+          padding:20px; margin-bottom:18px; }
+  ol { margin: 0; padding-left: 22px; }
+  ol li { margin-bottom: 12px; }
+  code, kbd { background:#eef1f5; border-radius:5px; padding:2px 7px;
+              font:14px/1.4 ui-monospace, Consolas, monospace; }
+  .btn { display:inline-block; background:var(--blue); color:#fff;
+         text-decoration:none; border:0; border-radius:9px;
+         padding:13px 20px; font-size:1rem; font-weight:600; cursor:pointer; }
+  .btn:hover { filter: brightness(1.07); }
+  .btn.secondary { background:#fff; color:var(--blue); border:1.5px solid var(--blue); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px; }
+  .hint { color:var(--muted); font-size:0.92rem; margin:10px 0 0; }
+  .addr { font:15px/1.5 ui-monospace, Consolas, monospace; background:#eef1f5;
+          border-radius:8px; padding:10px 12px; word-break:break-all; }
+  .backlink { display:inline-block; margin-bottom:18px; color:var(--blue);
+              text-decoration:none; font-weight:600; }
+  .note { border-left:4px solid var(--blue); background:#eaf3fc; padding:12px 14px;
+          border-radius:0 8px 8px 0; margin-top:14px; font-size:0.94rem; }
+  .fail { border-left-color:#d9480f; background:#fdece4; }
+  #installed { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="/">← Back to messages</a>
+  <h1>Set up this computer</h1>
+  <p class="lede">Do this once per computer. It takes about a minute, and then
+    Dental Flow opens in its own window every morning without anyone
+    touching it.</p>
+
+  <div class="card">
+    <h2>1. The address for this office</h2>
+    <div class="addr" id="addr">…</div>
+    <div class="row">
+      <button class="btn secondary" id="copy">Copy this address</button>
+    </div>
+    <p class="hint">Bookmark the version with a <em>name</em> in it rather than
+      numbers where you can — router restarts change the numbers and break
+      every bookmark in the office at once.</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Have it open by itself at startup</h2>
+    <p>This downloads a shortcut that opens Dental Flow in its own window — no
+      tabs, no address bar, and <strong>nothing to press</strong>.</p>
+    <div class="row">
+      <a class="btn" id="dl-edge" href="/setup/shortcut">Download the shortcut (Edge)</a>
+      <a class="btn secondary" id="dl-chrome" href="/setup/shortcut?chrome">Chrome version</a>
+    </div>
+    <div id="dlerror" class="note fail" hidden></div>
+    <ol style="margin-top:18px">
+      <li>Press <kbd>Windows</kbd> + <kbd>R</kbd>, type <code>shell:startup</code>
+        and press Enter. A folder opens.</li>
+      <li>Drag the downloaded <code>Dental Flow</code> shortcut into it.</li>
+      <li>That's it. Restart the computer to check — Dental Flow should appear
+        on its own.</li>
+    </ol>
+    <p class="hint">Want it on the desktop or taskbar as well? Copy the same
+      shortcut there, or right-click it and choose Pin to taskbar.</p>
+    <div class="note">Why a shortcut rather than the <strong>⧉ Pop out</strong>
+      button: browsers only allow a page to open a window when a person clicks
+      something, so that button can never fire by itself at startup. This
+      shortcut asks the browser directly, so nobody has to press anything.</div>
+  </div>
+
+  <div class="card" id="install-card">
+    <h2>3. Or install it as an app</h2>
+    <p>Same result by a different route — its own icon, its own window. Use
+      whichever you prefer; you do not need both.</p>
+    <div class="row">
+      <button class="btn" id="install" hidden>Install Dental Flow</button>
+      <span id="install-manual" class="hint" style="margin:0">
+        In <strong>Edge</strong>: menu (⋯) → Apps → Install this site as an app.
+        In <strong>Chrome</strong>: menu (⋮) → Cast, save and share → Install
+        page as app.
+      </span>
+    </div>
+    <div id="installed" class="note">Dental Flow is already installed on this
+      computer. Its icon opens it in its own window — put a copy of that icon
+      in the <code>shell:startup</code> folder from step 2 and it will open at
+      sign-in too.</div>
+  </div>
+
+</div>
+
+<script>
+  const addr = location.origin;
+  document.getElementById('addr').textContent = addr;
+
+  document.getElementById('copy').onclick = async (e) => {
+    try {
+      await navigator.clipboard.writeText(addr);
+      e.target.textContent = 'Copied ✓';
+      setTimeout(() => (e.target.textContent = 'Copy this address'), 1800);
+    } catch { e.target.textContent = 'Select the address above and copy it'; }
+  };
+
+  // The shortcut is built by the server, on the server. If the browser it is
+  // built against is not installed *there*, say so plainly rather than
+  // handing over a download that silently does nothing.
+  for (const id of ['dl-edge', 'dl-chrome']) {
+    document.getElementById(id).addEventListener('click', async (ev) => {
+      const url = ev.currentTarget.getAttribute('href');
+      const res = await fetch(url).catch(() => null);
+      if (res && res.ok) return;   // let the normal download proceed
+      ev.preventDefault();
+      const box = document.getElementById('dlerror');
+      box.textContent = res
+        ? await res.text()
+        : 'The Dental Flow server could not be reached to build the shortcut.';
+      box.hidden = false;
+    });
+  }
+
+  // Chrome and Edge fire this when the app is installable. Having a real
+  // button is far better than asking anyone to find a menu item.
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    document.getElementById('install').hidden = false;
+    document.getElementById('install-manual').hidden = true;
+  });
+  document.getElementById('install').onclick = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    document.getElementById('install').hidden = true;
+  };
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('installed').style.display = 'block';
+    document.getElementById('install').hidden = true;
+    document.getElementById('install-manual').hidden = true;
+  });
+  if (matchMedia('(display-mode: standalone)').matches) {
+    document.getElementById('installed').style.display = 'block';
+    document.getElementById('install-manual').hidden = true;
+  }
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>

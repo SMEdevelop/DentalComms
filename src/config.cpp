@@ -165,6 +165,7 @@ js::Value Config::toJson() const {
     out["notifySound"] = notifySound;
     out["notifyFlash"] = notifyFlash;
     out["notifyTaskbar"] = notifyTaskbar;
+    out["startMinimized"] = startMinimized;
     js::Value hosts = js::Value::array();
     for (const auto& h : allowedHosts) hosts.push(h);
     out["allowedHosts"] = hosts;
@@ -218,6 +219,12 @@ bool Config::applyFromJson(const js::Value& body, std::string& error) {
     next.notifyTaskbar = body.find("notifyTaskbar")
                              ? jsTruthy(body.find("notifyTaskbar"))
                              : notifyTaskbar;
+    // Carried over the same way, and for the same reason: this one belongs to
+    // the server computer, and the settings page has no business resetting it
+    // because somebody renamed a room from a different machine.
+    next.startMinimized = body.find("startMinimized")
+                              ? jsTruthy(body.find("startMinimized"))
+                              : startMinimized;
 
     for (size_t i = 0; i < sts->arr.size() && i < 40; ++i) {
         const js::Value& s = sts->arr[i];
@@ -286,6 +293,7 @@ Config loadConfig() {
     c.notifySound = v.boolean("notifySound", true);
     c.notifyFlash = v.boolean("notifyFlash", true);
     c.notifyTaskbar = v.boolean("notifyTaskbar", true);
+    c.startMinimized = v.boolean("startMinimized", false);
     if (const js::Value* hosts = v.find("allowedHosts")) {
         for (const auto& h : hosts->arr) {
             const std::string name = lower(trim(h.asStr()));

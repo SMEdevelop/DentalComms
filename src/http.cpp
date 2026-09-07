@@ -173,17 +173,20 @@ void Conn::sendRaw(const std::string& bytes) {
 }
 
 void Conn::send(int code, const std::string& contentType,
-                const std::string& body) {
+                const std::string& body, const std::string& extraHeaders) {
     char head[512];
     std::snprintf(head, sizeof(head),
                   "HTTP/1.1 %d %s\r\n"
                   "Content-Type: %s\r\n"
                   "Content-Length: %zu\r\n"
                   "Cache-Control: no-store\r\n"
-                  "Connection: close\r\n"
-                  "\r\n",
+                  "Connection: close\r\n",
                   code, reasonFor(code), contentType.c_str(), body.size());
     std::string out(head);
+    // Already CRLF-terminated per line by the caller, or empty. The blank line
+    // that ends the headers is added here either way.
+    out += extraHeaders;
+    out += "\r\n";
     out += body;
     sendRaw(out);
 }

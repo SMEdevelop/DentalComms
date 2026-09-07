@@ -39,7 +39,11 @@ public:
 
     bool readRequest(HttpRequest& req);
     void sendRaw(const std::string& bytes);
-    void send(int code, const std::string& contentType, const std::string& body);
+    // `extraHeaders`, when given, is inserted verbatim and must already end
+    // each line with CRLF. Used for the one reply that needs a
+    // Content-Disposition - the downloadable startup shortcut.
+    void send(int code, const std::string& contentType, const std::string& body,
+              const std::string& extraHeaders = "");
     void sendJson(int code, const js::Value& value);
     void sendText(int code, const std::string& text);
 

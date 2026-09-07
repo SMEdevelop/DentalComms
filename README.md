@@ -38,9 +38,20 @@ any web browser.
 
 2. **Unzip the whole folder**, then **double-click `DentalFlow.exe`** inside it.
 
-   A window opens saying *"Dental Flow is running"* and lists the web addresses
-   it can be reached at. **Leave that window open** — closing it turns Dental
-   Flow off.
+   A small window opens saying *"Dental Flow is running"* and lists the web
+   addresses it can be reached at, with buttons to copy the staff address or
+   open it here.
+
+   **Closing that window no longer turns Dental Flow off.** It tucks itself
+   into the notification area (the ⌃ arrow by the clock) and keeps running —
+   click the icon to bring it back, or right-click it for *Turn Dental Flow
+   off*. That is a change from earlier versions, where closing the black
+   console window stopped the whole office's messaging, which is not something
+   a window close should ever do.
+
+   While you are there, right-click that icon and tick **Start with
+   Windows**. The server computer will then bring Dental Flow up by itself,
+   straight into the notification area, whenever it restarts.
 
    > There is nothing to install first, and no Node.js or anything else to
    > download. Keep the folder together though: the `.dll` files next to
@@ -100,6 +111,46 @@ browser — Windows, Mac, iPad, a phone.
   in its own small window — resize it and tuck it beside your other programs.
   The layout shrinks to a single column when the window is narrow. (If nothing
   opens, the browser blocked the pop-up — allow pop-ups for this site.)
+
+  To have that window appear **by itself when the computer starts**, don't use
+  this button — see [Set up this computer](#set-up-this-computer-once-per-machine)
+  below. The pop-out button can only ever work when a person presses it.
+
+## Set up this computer (once per machine)
+
+Open **🖥️ Set up this computer** in the header, or go straight to
+`/setup`. It does two things, and one of them fixes the most common
+complaint about Dental Flow.
+
+### Have it open by itself at startup
+
+The page offers a **shortcut to download**. Drop it into the startup folder
+(press `Win+R`, type `shell:startup`, drag it in) and Dental Flow opens in its
+own window every time that computer starts, with nobody pressing anything.
+
+**Why a shortcut rather than the ⧉ Pop out button.** The pop-out button calls
+the browser's `window.open()`, and every browser only honours that inside a
+real click — so it *cannot* fire by itself at sign-in, however it is
+configured. A computer that restarts comes up with Dental Flow as an ordinary
+tab behind everything else, and somebody has to notice and press the button.
+That is not a setting anyone got wrong; it is how browsers work.
+
+The downloaded shortcut starts the browser with `--app=`, which makes exactly
+the window the pop-out button was trying to make — no tabs, no address bar,
+its own taskbar entry — and no pop-up blocker is involved, because no pop-up
+is involved.
+
+> The shortcut is built by the server, so it points at the browser installed
+> **on the server computer**. Both an Edge and a Chrome version are offered;
+> take whichever matches the staff machine. Edge is the default because it is
+> on every supported Windows and cannot be removed.
+
+### Or install it as an app
+
+The same page has an **Install** button where the browser supports it. That
+gives Dental Flow its own icon and its own window, and putting a copy of that
+icon in `shell:startup` has the same effect. Use either route — you do not
+need both.
 
 ## Install it like a real program (recommended)
 
@@ -235,6 +286,12 @@ the router, say — list it in `data/config.json` or that name will be refused:
 
 ## Other settings in `data/config.json`
 
+`"startMinimized": true` makes the server go straight to the notification area
+whenever it starts, with no window at all. The **Start with Windows** tick in
+the tray menu does the same for the automatic launch only, by passing
+`--tray` — so you can have it appear quietly at sign-in and still get a window
+when you start it by hand.
+
 These have no page in ⚙️ Settings; edit the file and restart Dental Flow.
 Saving from the Settings page leaves them alone.
 
@@ -300,7 +357,7 @@ Prompt first:
 
 ```bash
 build.bat        # produces DentalFlow.exe
-run_tests.bat    # 190 checks over every non-networking part
+run_tests.bat    # 208 checks over every non-networking part
 package.bat      # the zip that goes to the office, in dist\
 ```
 

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "config.h"
+#include "gui.h"
 #include "network.h"
 #include "routes.h"
 #include "state.h"
@@ -54,129 +55,22 @@ int pickPort() {
 on::Hub g_hub;
 SOCKET g_listen = INVALID_SOCKET;
 
-BOOL WINAPI onConsoleSignal(DWORD) {
-    // Ctrl+C or the window closing: drop the listener and every open event
-    // stream so the process can exit instead of hanging on a blocked accept.
+// Called from the UI thread when the user turns Dental Flow off. Dropping the
+// listener is what unblocks the accept thread; without it the process would
+// sit in accept() forever and never exit.
+void stopServing() {
     if (g_listen != INVALID_SOCKET) {
         closesocket(g_listen);
         g_listen = INVALID_SOCKET;
     }
     g_hub.stop();
-    return FALSE;  // let the default handler finish the job
 }
 
-}  // namespace
-
-int main() {
-    // The activity log and station names can hold non-ASCII text; without this
-    // the console renders them as mojibake.
-    SetConsoleOutputCP(CP_UTF8);
-
-    std::string err;
-    if (!on::netStartup(err)) {
-        std::printf("\n  PROBLEM: %s\n", err.c_str());
-        return 1;
-    }
-
-    // Where Dental Flow is willing to answer depends on the kind of network
-    // this computer is on, so the settings have to be read before binding.
-    on::Config cfg = on::loadConfig();
-    const on::NetProfile profile = on::currentProfile();
-    const on::NetMode mode = cfg.networks.modeFor(profile);
-
-    if (mode == on::NetMode::Off) {
-        std::printf(
-            "\n  Dental Flow did not start.\n\n"
-            "  Windows says this computer is on a %s network, and Dental Flow is\n"
-            "  set to stay off on those.\n\n"
-            "  If this is your office network, tell Windows so: Settings ->\n"
-            "  Network & internet -> (your connection) -> set the network\n"
-            "  profile to Private. Then start Dental Flow again.\n\n"
-            "  To change the rule itself, edit \"networks\" in "
-            "data\\config.json.\n\n",
-            on::profileName(profile));
-        on::netCleanup();
-        return 1;
-    }
-
-    const bool localOnly = (mode == on::NetMode::LocalOnly);
-    const int port = pickPort();
-    bool inUse = false;
-    g_listen = on::listenOn(port, localOnly, err, inUse);
-    if (g_listen == INVALID_SOCKET) {
-        std::printf("\n");
-        if (inUse) {
-            std::printf(
-                "  PROBLEM: another program on this computer is already using "
-                "port %d.\n"
-                "  Fix: create a file named port.txt in this folder containing "
-                "a different\n"
-                "  number (for example 8123), then start Dental Flow again.\n"
-                "  Remember to update the bookmarks on the other computers to "
-                "the new number.\n",
-                port);
-        } else {
-            std::printf("  PROBLEM: Dental Flow could not start: %s\n",
-                        err.c_str());
-        }
-        on::netCleanup();
-        return 1;
-    }
-
-    g_hub.start(cfg);
-    SetConsoleCtrlHandler(onConsoleSignal, TRUE);
-
-    std::printf("\n  Dental Flow %s is running.\n", DF_VERSION_STRING);
-    std::printf("  On this computer:  http://localhost:%d\n", port);
-    if (localOnly) {
-        // Say plainly that staff cannot connect, and why, rather than letting
-        // someone spend twenty minutes on bookmarks that were never going to
-        // work.
-        std::printf(
-            "\n  Network: %s - this computer only.\n"
-            "  Staff computers CANNOT connect right now. Dental Flow holds back\n"
-            "  on %s networks because it has no password on it.\n\n"
-            "  If this is your office network, tell Windows so: Settings ->\n"
-            "  Network & internet -> (your connection) -> set the network\n"
-            "  profile to Private, then restart Dental Flow.\n",
-            on::profileName(profile), on::profileName(profile));
-    } else {
-        // The computer's own name goes first, and is the one to bookmark: it
-        // keeps working when the router hands this machine a different number
-        // after a restart, which is the failure that breaks every bookmark in
-        // the office at once and looks like Dental Flow having died.
-        //
-        // Nothing else had to change for this to work - hostIsOurs() already
-        // accepts this computer's name, and any .local or .lan form of it.
-        std::vector<std::string> ways;
-        const std::string me = computerName();
-        if (!me.empty()) ways.push_back(me);
-        for (const auto& ip : on::localIPv4()) ways.push_back(ip);
-
-        if (ways.empty()) {
-            // Every address was filtered out as unreachable and the machine
-            // will not say what it is called. Rare, and better admitted than
-            // papered over with a heading and nothing under it.
-            std::printf(
-                "  Other computers:   (this computer has no network address "
-                "to offer)\n");
-        }
-        for (size_t i = 0; i < ways.size(); ++i) {
-            std::printf("%s http://%s:%d\n",
-                        i == 0 ? "  Other computers:  " : "                    ",
-                        ways[i].c_str(), port);
-        }
-        std::printf("\n  Network: %s - staff computers can connect.\n",
-                    on::profileName(profile));
-        if (!me.empty() && ways.size() > 1) {
-            std::printf(
-                "  Bookmark the first one. The name keeps working even if the\n"
-                "  router gives this computer a different number later.\n");
-        }
-    }
-    std::printf("\n  Leave this window open. Press Ctrl+C to stop.\n\n");
-    std::fflush(stdout);
-
+// The accept loop, on its own thread. It has to be off the UI thread: a window
+// being dragged, or a menu left open, blocks the message loop, and a message
+// nobody could deliver because someone was holding a menu open would be
+// exactly the kind of failure this program promises not to have.
+void acceptLoop() {
     while (true) {
         sockaddr_in from{};
         int fromLen = sizeof(from);
@@ -190,7 +84,103 @@ int main() {
         // affecting anyone else is far simpler than an event loop.
         std::thread([client] { on::serveConnection(client, g_hub); }).detach();
     }
+}
 
+// Started with --tray (or /tray), Dental Flow goes straight to the
+// notification area. That is how the Run key launches it, so a computer that
+// switches itself on in the morning does not greet whoever unlocks it with a
+// window across their screen.
+bool wantsTray(const std::string& cmdLine) {
+    const std::string c = lower(cmdLine);
+    return icontains(c, "--tray") || icontains(c, "/tray") ||
+           icontains(c, "--minimized") || icontains(c, "--minimised");
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
+    std::string err;
+    if (!on::netStartup(err)) {
+        on::showProblem("Dental Flow could not start: " + err);
+        return 1;
+    }
+
+    // Where Dental Flow is willing to answer depends on the kind of network
+    // this computer is on, so the settings have to be read before binding.
+    on::Config cfg = on::loadConfig();
+    const on::NetProfile profile = on::currentProfile();
+    const on::NetMode mode = cfg.networks.modeFor(profile);
+
+    if (mode == on::NetMode::Off) {
+        on::showProblem(
+            std::string("Dental Flow did not start.\n\nWindows says this "
+                        "computer is on a ") +
+            on::profileName(profile) +
+            " network, and Dental Flow is set to stay off on those.\n\n"
+            "If this is your office network, tell Windows so: Settings > "
+            "Network & internet > (your connection) > set the network profile "
+            "to Private. Then start Dental Flow again.\n\n"
+            "To change the rule itself, edit \"networks\" in "
+            "data\\config.json.");
+        on::netCleanup();
+        return 1;
+    }
+
+    const bool localOnly = (mode == on::NetMode::LocalOnly);
+    const int port = pickPort();
+    bool inUse = false;
+    g_listen = on::listenOn(port, localOnly, err, inUse);
+    if (g_listen == INVALID_SOCKET) {
+        if (inUse) {
+            char msg[512];
+            _snprintf_s(msg, sizeof(msg), _TRUNCATE,
+                        "Another program on this computer is already using "
+                        "port %d.\n\nFix: create a file named port.txt in the "
+                        "Dental Flow folder containing a different number (for "
+                        "example 8123), then start Dental Flow again.\n\n"
+                        "Remember to update the bookmarks on the other "
+                        "computers to the new number.",
+                        port);
+            on::showProblem(msg);
+        } else {
+            on::showProblem("Dental Flow could not start: " + err);
+        }
+        on::netCleanup();
+        return 1;
+    }
+
+    g_hub.start(cfg);
+
+    // What the window shows. Worked out here, beside the code that decided
+    // where to bind, rather than in the window - which should not have to know
+    // anything about networks.
+    on::GuiInfo info;
+    info.version = DF_VERSION_STRING;
+    info.port = port;
+    info.networkName = on::profileName(profile);
+    info.localOnly = localOnly;
+    info.officeName = cfg.officeName;
+    if (!localOnly) {
+        // The computer's own name goes first, and is the one to bookmark: it
+        // keeps working when the router hands this machine a different number
+        // after a restart, which is the failure that breaks every bookmark in
+        // the office at once and looks like Dental Flow having died.
+        info.computer = computerName();
+        if (!info.computer.empty()) info.addresses.push_back(info.computer);
+        for (const auto& ip : on::localIPv4()) info.addresses.push_back(ip);
+    }
+
+    std::thread server(acceptLoop);
+
+    // Either the switch on this launch or the setting in config.json will do
+    // it: the switch is what the run-at-sign-in entry passes, and the setting
+    // is for an office that wants it that way however it was started.
+    const bool hidden = cfg.startMinimized || wantsTray(narrow(cmdLine));
+    const int rc = on::runGui(inst, info, hidden, &stopServing);
+
+    // runGui only returns once the user has quit and stopServing has closed
+    // the listener, so this joins rather than hangs.
+    if (server.joinable()) server.join();
     on::netCleanup();
-    return 0;
+    return rc;
 }

@@ -51,12 +51,13 @@ rem  deprecated by MSVC but are exactly what the Node original used, and are
 rem  fine for an IPv4 office LAN.
 set CXXFLAGS=/nologo /std:c++17 /O2 /EHsc /MD /W3 /GS /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /D_WIN32_WINNT=0x0A00 /D_CRT_SECURE_NO_WARNINGS /D_WINSOCK_DEPRECATED_NO_WARNINGS /Isrc /Fobuild\obj\ /Fdbuild\obj\
 
-rem  A console program: the default /SUBSYSTEM:CONSOLE and main() entry point
-rem  are what we want, so the office sees the "Dental Flow is running" window.
-set LDFLAGS=/link /INCREMENTAL:NO /OPT:REF /OPT:ICF
-set LIBS=ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib
+rem  A windowed program since 0.9: /SUBSYSTEM:WINDOWS and wWinMain, so the
+rem  office gets an ordinary window and a notification-area icon rather than a
+rem  console nobody dares close. No console is allocated at all.
+set LDFLAGS=/link /INCREMENTAL:NO /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS
+set LIBS=ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib user32.lib gdi32.lib shell32.lib comctl32.lib
 
-set SOURCES=src\main.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
+set SOURCES=src\main.cpp src\gui.cpp src\shortcut.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
 
 echo  Compiling resources...
 rc /nologo /fo build\app.res src\app.rc

@@ -67,6 +67,13 @@ struct Config {
     bool notifyFlash = true;
     bool notifyTaskbar = true;
 
+    // Start straight into the notification area, with no window. What the
+    // office wants once it is set up and working: the server computer comes
+    // on in the morning and Dental Flow is simply there. The --tray switch
+    // does the same thing for one launch, and is what the run-at-sign-in
+    // entry uses.
+    bool startMinimized = false;
+
     // Names this server may be reached by, beyond localhost, this computer's
     // own name, and the address a connection actually arrived on. Only needed
     // when the office uses an alias its router hands out.

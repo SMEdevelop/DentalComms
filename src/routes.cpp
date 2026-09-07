@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "shortcut.h"
 #include "util.h"
 
 namespace on {
@@ -292,10 +293,35 @@ void serveConnection(SOCKET raw, Hub& hub) {
         return;
     }
 
+    // --- the startup shortcut ---
+    // Built here rather than kept as a file, because it has to carry the
+    // address this particular office reaches the server on - which is
+    // whatever the browser asked for, so a computer that bookmarked the name
+    // gets a shortcut with the name in it and one that used the number gets
+    // the number.
+    if (p == "/setup/shortcut") {
+        const bool chrome = icontains(req.query, "chrome");
+        // The Host header is the address that actually worked from where the
+        // request came from, which is a better answer than anything this
+        // process could work out about itself.
+        std::string host = req.header("Host");
+        if (host.empty()) host = "localhost";
+        std::string bytes, err;
+        if (!buildStartupShortcut("http://" + host, chrome, bytes, err)) {
+            conn.sendText(503, err);
+            return;
+        }
+        std::string extra =
+            "Content-Disposition: attachment; filename=\"Dental Flow.lnk\"\r\n";
+        conn.send(200, "application/octet-stream", bytes, extra);
+        return;
+    }
+
     // --- pages and assets ---
     std::string wanted = p;
     if (p == "/") wanted = "/index.html";
     else if (p == "/admin") wanted = "/admin.html";
+    else if (p == "/setup") wanted = "/setup.html";
 
     std::string full;
     if (!resolveStaticPath(wanted, publicDir, full)) {

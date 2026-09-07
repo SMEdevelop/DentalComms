@@ -11,6 +11,7 @@
 #include "config.h"
 #include "json.h"
 #include "routes.h"
+#include "shortcut.h"
 #include "state.h"
 #include "util.h"
 
@@ -819,6 +820,107 @@ int main() {
         check(a[8] == '-' && a[13] == '-' && a[18] == '-' && a[23] == '-',
               "dashes in the uuid positions");
         check(a[14] == '4', "version 4");
+    }
+
+    // ---------------------------------------------------------------------
+    section("Starting minimised");
+    {
+        on::Config c = on::Config::defaults();
+        check(!c.startMinimized,
+              "a fresh office starts with a window, not hidden away");
+
+        c.startMinimized = true;
+        js::Value out = c.toJson();
+        const js::Value* v = out.find("startMinimized");
+        check(v && v->isBool() && v->b,
+              "the setting is written to config.json");
+
+        // An office that has set it must keep it when someone renames a room
+        // from the settings page, which knows nothing about this option.
+        js::Value body = makeConfigBody(2, 2);
+        std::string err;
+        check(c.applyFromJson(body, err),
+              "a settings edit that never mentions it still saves");
+        check(c.startMinimized,
+              "and leaves it alone rather than turning it back off");
+
+        on::Config off = on::Config::defaults();
+        js::Value body2 = makeConfigBody(2, 2);
+        check(off.applyFromJson(body2, err) && !off.startMinimized,
+              "an office that never set it is not switched on by accident");
+    }
+
+    // ---------------------------------------------------------------------
+    section("The startup shortcut");
+    {
+        // Why this exists at all: the page's pop-out button calls
+        // window.open(), which browsers only honour inside a real click, so it
+        // can never fire by itself at sign-in. A browser started with --app=
+        // makes the same window with nobody pressing anything.
+        check(on::browserAvailable(false),
+              "Edge is on this computer, so a shortcut can be built");
+
+        std::string bytes, err;
+        const bool built = on::buildStartupShortcut(
+            "http://RECEPTION-PC:3272", false, bytes, err);
+        check(built, "a shortcut is produced" + (built ? "" : ": " + err));
+        if (built) {
+            // A Windows shortcut begins with a header length of 0x4C followed
+            // by the shell link class id. Checking the bytes rather than just
+            // the size is what tells a real .lnk from an error page saved
+            // under the wrong name.
+            check(bytes.size() > 300, "of a plausible size");
+            check((unsigned char)bytes[0] == 0x4C && bytes[1] == 0 &&
+                      bytes[2] == 0 && bytes[3] == 0,
+                  "with a shell link header length");
+            check((unsigned char)bytes[4] == 0x01 &&
+                      (unsigned char)bytes[5] == 0x14 &&
+                      (unsigned char)bytes[6] == 0x02,
+                  "and the shell link class id");
+            // The address has to be in there, or the shortcut opens the wrong
+            // office - and every staff computer would need doing again.
+            check(bytes.find("RECEPTION-PC") != std::string::npos ||
+                      bytes.find(std::string("R\0E\0C\0E\0P\0T\0I\0O\0N", 17)) !=
+                          std::string::npos,
+                  "carrying the address it was asked for");
+        }
+
+        std::string ignored, why;
+        check(!on::buildStartupShortcut("http://x:1", true, ignored, why) ||
+                  on::browserAvailable(true),
+              "asking for Chrome either works or says Chrome is not installed");
+        if (!on::browserAvailable(true))
+            note("Chrome is not on this computer, so only the Edge shortcut "
+                 "was exercised");
+    }
+
+    // ---------------------------------------------------------------------
+    section("Files the client setup needs");
+    {
+        const std::string pub = joinPath(on::resourceRoot(), "public");
+        check(fileExists(joinPath(pub, "setup.html")),
+              "the Set up this computer page is present");
+        check(fileExists(joinPath(pub, "sw.js")),
+              "the service worker is present");
+        std::string idx;
+        if (readFile(joinPath(pub, "index.html"), idx))
+            check(idx.find("sw.js") == std::string::npos,
+                  "and is NOT registered from the page staff use all day - it "
+                  "sits in front of the alert stream and cannot be un-installed "
+                  "by deleting it from the server");
+        std::string sw;
+        if (readFile(joinPath(pub, "sw.js"), sw)) {
+            // It exists only so Chrome offers to install the app. If it ever
+            // starts caching, a station could show a working-looking page
+            // while the server is off - the one failure this program must not
+            // have.
+            check(sw.find("caches.open") == std::string::npos &&
+                      sw.find("cache.put") == std::string::npos &&
+                      sw.find("cache.addAll") == std::string::npos,
+                  "and stores nothing, so a dead server can never look alive");
+            check(sw.find("addEventListener('fetch'") != std::string::npos,
+                  "while still having the fetch handler installability needs");
+        }
     }
 
     std::printf("\n=====================================\n");

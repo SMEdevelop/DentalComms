@@ -1,27 +1,24 @@
-// A Windows shortcut that opens Dental Flow in its own window at sign-in.
+// A batch file that makes Dental Flow open by itself at sign-in, built for the
+// address the office actually reaches this server on.
 //
-// See shortcut.cpp for why this exists rather than a help page telling people
-// to build one by hand. In short: the pop-out button in the page cannot fire
-// itself, because browsers only allow window.open() inside a real click - so a
-// computer that restarts needs somebody to press it. A browser started with
-// --app= makes the same window with nobody pressing anything.
+// See shortcut.cpp for why this is a script rather than the .lnk it used to
+// be. In short: Chromium will not save a .lnk at all - it renames it to
+// .download - so the shortcut has to be made on the staff computer rather than
+// downloaded to it. Running there is also the only honest way to tell which
+// browser that computer has, which building it on the server never could.
 #pragma once
 #include <string>
 
 namespace on {
 
-// Builds the shortcut and returns its bytes in `out`, ready to be served as a
-// download. `url` is the address staff use, e.g. "http://RECEPTION-PC:3272".
-// Returns false and fills `error` when the chosen browser is not installed on
-// this computer, or Windows refuses.
+// Builds the setup script and returns its text in `out`, ready to be served as
+// a download. `url` is the address staff use, e.g. "http://RECEPTION-PC:3272";
+// `chrome` chooses which browser the script tries first, though it falls back
+// to the other rather than giving up.
 //
-// Note this reports on the computer running the SERVER. That is the honest
-// limit of building it here: the setup page offers both, and says so.
-bool buildStartupShortcut(const std::string& url, bool chrome,
-                          std::string& out, std::string& error);
-
-// Whether that browser is present, so the setup page can offer the one that
-// will actually work rather than a download that fails.
-bool browserAvailable(bool chrome);
+// Returns false and fills `error` when `url` is not an address that can safely
+// be put in a batch file - see safeUrl in the implementation.
+bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
+                        std::string& error);
 
 }  // namespace on

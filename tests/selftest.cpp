@@ -857,41 +857,80 @@ int main() {
         // window.open(), which browsers only honour inside a real click, so it
         // can never fire by itself at sign-in. A browser started with --app=
         // makes the same window with nobody pressing anything.
-        check(on::browserAvailable(false),
-              "Edge is on this computer, so a shortcut can be built");
-
-        std::string bytes, err;
-        const bool built = on::buildStartupShortcut(
-            "http://RECEPTION-PC:3272", false, bytes, err);
-        check(built, "a shortcut is produced" + (built ? "" : ": " + err));
+        //
+        // What is handed over is the script that makes the shortcut. Serving
+        // the .lnk itself cannot work - Chromium renames it to .download - and
+        // the script runs where the answer about which browser is installed is
+        // actually true, which is the staff computer rather than this one.
+        std::string script, err;
+        const bool built = on::buildStartupScript("http://RECEPTION-PC:3272",
+                                                  false, script, err);
+        check(built, "a script is produced" + (built ? "" : ": " + err));
         if (built) {
-            // A Windows shortcut begins with a header length of 0x4C followed
-            // by the shell link class id. Checking the bytes rather than just
-            // the size is what tells a real .lnk from an error page saved
-            // under the wrong name.
-            check(bytes.size() > 300, "of a plausible size");
-            check((unsigned char)bytes[0] == 0x4C && bytes[1] == 0 &&
-                      bytes[2] == 0 && bytes[3] == 0,
-                  "with a shell link header length");
-            check((unsigned char)bytes[4] == 0x01 &&
-                      (unsigned char)bytes[5] == 0x14 &&
-                      (unsigned char)bytes[6] == 0x02,
-                  "and the shell link class id");
+            check(script.compare(0, 9, "@echo off") == 0,
+                  "that cmd.exe will recognise as a batch file");
+            // cmd.exe is not reliable on LF-only files: a goto into a label
+            // block is exactly where it comes apart, and this file is all
+            // labels.
+            check(script.find("\r\n") != std::string::npos &&
+                      script.find("\n\n") == std::string::npos,
+                  "with CRLF line endings throughout");
+            // The console reads this in an OEM code page, so anything above
+            // ASCII arrives as mojibake on a staff computer.
+            bool ascii = true;
+            for (size_t i = 0; i < script.size(); ++i)
+                if ((unsigned char)script[i] > 0x7F) ascii = false;
+            check(ascii, "and nothing in it above plain ASCII");
+
             // The address has to be in there, or the shortcut opens the wrong
             // office - and every staff computer would need doing again.
-            check(bytes.find("RECEPTION-PC") != std::string::npos ||
-                      bytes.find(std::string("R\0E\0C\0E\0P\0T\0I\0O\0N", 17)) !=
-                          std::string::npos,
+            check(script.find("http://RECEPTION-PC:3272") != std::string::npos,
                   "carrying the address it was asked for");
+            check(script.find("--app=%DF_URL%") != std::string::npos,
+                  "opening it in its own window rather than a tab");
+            check(script.find("Start Menu\\Programs\\Startup") !=
+                      std::string::npos,
+                  "and putting the shortcut where Windows starts things from");
+
+            // A computer with only the other browser still has to end up set
+            // up, so both are looked for whichever was asked for.
+            check(script.find("msedge.exe") != std::string::npos &&
+                      script.find("chrome.exe") != std::string::npos,
+                  "looking for either browser, not only the one asked for");
+            check(script.find(":nobrowser") != std::string::npos,
+                  "and saying so plainly when neither is there");
         }
 
-        std::string ignored, why;
-        check(!on::buildStartupShortcut("http://x:1", true, ignored, why) ||
-                  on::browserAvailable(true),
-              "asking for Chrome either works or says Chrome is not installed");
-        if (!on::browserAvailable(true))
-            note("Chrome is not on this computer, so only the Edge shortcut "
-                 "was exercised");
+        std::string chromeFirst;
+        check(on::buildStartupScript("http://x:1", true, chromeFirst, err),
+              "asking for Chrome also produces a script");
+        if (!chromeFirst.empty())
+            check(chromeFirst.find("chrome.exe") < chromeFirst.find("msedge.exe"),
+                  "with Chrome tried before Edge when Chrome was asked for");
+
+        // The address comes out of the Host header, which is whatever the
+        // client chose to send, and it is pasted into a batch file where & is
+        // a command separator. Refusing the shape is the whole defence.
+        const char* hostile[] = {
+            "http://x&calc",
+            "http://x|calc",
+            "http://x\"&calc&\"",
+            "http://x%CD%",
+            "http://x\r\nrem",
+            "http://x^&calc",
+            "https://x",
+            "x:1",
+            "http://",
+        };
+        bool allRefused = true;
+        for (size_t i = 0; i < sizeof(hostile) / sizeof(*hostile); ++i) {
+            std::string ignored, why;
+            if (on::buildStartupScript(hostile[i], false, ignored, why))
+                allRefused = false;
+        }
+        check(allRefused,
+              "an address that would run commands in the batch file is "
+              "refused, not escaped");
     }
 
     // ---------------------------------------------------------------------

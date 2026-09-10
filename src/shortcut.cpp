@@ -1,4 +1,4 @@
-// Builds a Windows shortcut that opens Dental Flow in its own window.
+// Builds the script that makes Dental Flow open by itself at sign-in.
 //
 // This exists because of a specific failure the office kept hitting. The
 // "⧉ Pop out" button in the page calls window.open(), and browsers only honour
@@ -11,129 +11,198 @@
 // entry. No pop-up blocker is involved because no pop-up is involved. Dropped
 // into shell:startup, it needs nobody to press anything, ever.
 //
-// The shortcut is built here rather than described in a help page because
-// "paste this command line into a shortcut's target field" is not an
-// instruction an office should have to follow on every computer.
+// This used to build that shortcut here and hand over the .lnk itself. That
+// cannot work. Chromium treats .lnk as shell-integrated and rewrites the
+// extension to "download" on the way to disk - see IsShellIntegratedExtension
+// in net/base/filename_util_internal.cc, guarding against CVE-2010-2568 - so
+// the office received a file called download.download that Windows would not
+// open. No response header opts out of it, in Chrome or in Edge.
+//
+// So the shortcut is made on the staff computer instead, by a small batch file
+// carrying this office's address. That is not merely a way around the rename;
+// it is the more truthful arrangement. Which browser to point at is a question
+// about the computer the window will open on, and building the shortcut here
+// could only ever answer it about the server.
+//
+// It is a script rather than a page of instructions because "paste this
+// command line into a shortcut's target field" is not something an office
+// should have to do correctly on every computer.
 #include "shortcut.h"
-
-#include <objbase.h>
-#include <shlobj.h>
-#include <shlwapi.h>
-
-#include "util.h"
 
 namespace on {
 namespace {
 
-// Where these browsers install on a normal Windows machine. Edge is first
-// because it is on every supported Windows and cannot be uninstalled, so a
-// shortcut built against it works on a computer nobody has set up yet.
-const wchar_t* kEdgePaths[] = {
-    L"%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe",
-    L"%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe",
+// Where these browsers install on a normal Windows machine, checked on the
+// computer that runs the script. Edge is listed first among its own paths
+// because it is on every supported Windows and cannot be uninstalled.
+struct Candidate {
+    const char* path;
+    const char* name;
 };
-const wchar_t* kChromePaths[] = {
-    L"%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
-    L"%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe",
-    L"%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe",
+const Candidate kEdge[] = {
+    {"%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe",
+     "Microsoft Edge"},
+    {"%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe",
+     "Microsoft Edge"},
+};
+const Candidate kChrome[] = {
+    {"%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
+     "Google Chrome"},
+    {"%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe",
+     "Google Chrome"},
+    {"%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe",
+     "Google Chrome"},
 };
 
-std::wstring expand(const wchar_t* raw) {
-    wchar_t buf[MAX_PATH * 2];
-    const DWORD n = ExpandEnvironmentStringsW(raw, buf, MAX_PATH * 2);
-    if (n == 0 || n > MAX_PATH * 2) return L"";
-    return buf;
-}
-
-// The first of these that is actually on this computer. Returns empty when a
-// browser is not installed, which the caller reports rather than producing a
-// shortcut that points at nothing.
-std::wstring findBrowser(bool chrome) {
-    const wchar_t* const* list = chrome ? kChromePaths : kEdgePaths;
-    const size_t count = chrome ? (sizeof(kChromePaths) / sizeof(*kChromePaths))
-                                : (sizeof(kEdgePaths) / sizeof(*kEdgePaths));
-    for (size_t i = 0; i < count; ++i) {
-        const std::wstring p = expand(list[i]);
-        if (!p.empty() && PathFileExistsW(p.c_str())) return p;
+// The address ends up inside a batch file, where & | > ^ and friends are
+// commands rather than text, and it arrives in the Host header - which is
+// whatever the client chose to send, not something this server picked. So only
+// the shape of a real host and port is allowed through, and anything else is
+// refused rather than escaped. Nothing an office can legitimately reach this
+// server on is turned away: names, IPv4, bracketed IPv6 and :port all pass.
+bool safeUrl(const std::string& url) {
+    static const std::string kPrefix = "http://";
+    if (url.compare(0, kPrefix.size(), kPrefix) != 0) return false;
+    const std::string host = url.substr(kPrefix.size());
+    if (host.empty() || host.size() > 255) return false;
+    for (size_t i = 0; i < host.size(); ++i) {
+        const char c = host[i];
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                        (c >= '0' && c <= '9') || c == '.' || c == '-' ||
+                        c == '_' || c == ':' || c == '[' || c == ']';
+        if (!ok) return false;
     }
-    return L"";
+    return true;
 }
 
 }  // namespace
 
-bool buildStartupShortcut(const std::string& url, bool chrome,
-                          std::string& out, std::string& error) {
-    const std::wstring browser = findBrowser(chrome);
-    if (browser.empty()) {
-        error = chrome ? "Google Chrome is not installed on this computer."
-                       : "Microsoft Edge was not found on this computer.";
+bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
+                        std::string& error) {
+    if (!safeUrl(url)) {
+        error = "The address this server was reached on is not one a startup "
+                "shortcut can be built for.";
         return false;
     }
 
-    // A shortcut is a COM object that can only be written to a real path, so
-    // it goes to a temp file and is read straight back. It is deleted either
-    // way - what the caller wants is the bytes, not a file on the server.
-    wchar_t tempDir[MAX_PATH];
-    if (!GetTempPathW(MAX_PATH, tempDir)) {
-        error = "Windows would not give a temporary folder.";
-        return false;
-    }
-    wchar_t tempFile[MAX_PATH];
-    if (!GetTempFileNameW(tempDir, L"dfk", 0, tempFile)) {
-        error = "Windows would not make a temporary file.";
-        return false;
-    }
-    // GetTempFileName makes a .tmp; IPersistFile writes a shortcut wherever it
-    // is pointed, and the extension it is saved under does not matter here
-    // because the browser only ever sees the bytes.
-    std::wstring lnkPath = tempFile;
+    // cmd.exe wants CRLF and reads the file in the console's OEM code page, so
+    // every line below ends properly and every character in it stays ASCII. A
+    // stray UTF-8 dash here arrives as mojibake on a staff computer.
+    std::string s;
+    const auto line = [&s](const std::string& text) {
+        s += text;
+        s += "\r\n";
+    };
 
-    // The server may already have COM up for something else; either way this
-    // has to leave the apartment as it found it.
-    const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    const bool weInitialised = SUCCEEDED(initHr);
+    line("@echo off");
+    line("setlocal");
+    line("title Dental Flow - open at startup");
+    line("");
+    line("rem  Dental Flow - make it open by itself when you sign in.");
+    line("rem");
+    line("rem  The Dental Flow server built this for the address below. Run it");
+    line("rem  on each computer that should open Dental Flow automatically. It");
+    line("rem  looks for the browser installed on THIS computer and puts a");
+    line("rem  shortcut in your Startup folder. Nothing is installed and");
+    line("rem  nothing is left running - delete that shortcut to undo it.");
+    line("");
+    line("set \"DF_URL=" + url + "\"");
+    line("set \"DF_STARTUP=%APPDATA%\\Microsoft\\Windows\\Start "
+         "Menu\\Programs\\Startup\"");
+    line("set \"DF_LNK=%DF_STARTUP%\\Dental Flow.lnk\"");
+    line("set \"DF_BROWSER=\"");
+    line("set \"DF_NAME=\"");
+    line("");
+    line("echo.");
+    line("echo   Dental Flow");
+    line("echo   Address: %DF_URL%");
+    line("echo.");
+    line("");
+    line("rem  The browser that was asked for first, then the other one. Which");
+    line("rem  browser opens the window matters far less than a window opening,");
+    line("rem  so a computer with only the other one still gets set up.");
 
-    bool ok = false;
-    IShellLinkW* link = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
-                                   IID_IShellLinkW, (void**)&link))) {
-        const std::wstring args = L"--app=" + widen(url);
-        link->SetPath(browser.c_str());
-        link->SetArguments(args.c_str());
-        link->SetDescription(L"Dental Flow - opens in its own window");
-        // The browser's own icon, so it looks like what it opens. Dental
-        // Flow's icon lives in a web manifest, which a .lnk cannot read.
-        link->SetIconLocation(browser.c_str(), 0);
+    const size_t kEdgeCount = sizeof(kEdge) / sizeof(*kEdge);
+    const size_t kChromeCount = sizeof(kChrome) / sizeof(*kChrome);
+    const Candidate* const first = chrome ? kChrome : kEdge;
+    const size_t firstCount = chrome ? kChromeCount : kEdgeCount;
+    const Candidate* const second = chrome ? kEdge : kChrome;
+    const size_t secondCount = chrome ? kEdgeCount : kChromeCount;
+    for (size_t i = 0; i < firstCount; ++i)
+        line(std::string("call :try \"") + first[i].path + "\" \"" +
+             first[i].name + "\"");
+    for (size_t i = 0; i < secondCount; ++i)
+        line(std::string("call :try \"") + second[i].path + "\" \"" +
+             second[i].name + "\"");
 
-        IPersistFile* file = nullptr;
-        if (SUCCEEDED(link->QueryInterface(IID_IPersistFile, (void**)&file))) {
-            if (SUCCEEDED(file->Save(lnkPath.c_str(), TRUE))) {
-                std::string bytes;
-                if (readFile(narrow(lnkPath), bytes) && !bytes.empty()) {
-                    out.swap(bytes);
-                    ok = true;
-                } else {
-                    error = "The shortcut was written but could not be read "
-                            "back.";
-                }
-            } else {
-                error = "Windows would not write the shortcut.";
-            }
-            file->Release();
-        } else {
-            error = "Windows would not save the shortcut.";
-        }
-        link->Release();
-    } else {
-        error = "Windows would not create a shortcut.";
-    }
+    line("");
+    line("if not defined DF_BROWSER goto :nobrowser");
+    line("if not exist \"%DF_STARTUP%\" mkdir \"%DF_STARTUP%\"");
+    line("");
+    line("rem  A shortcut is a COM object, so PowerShell is what makes it. The");
+    line("rem  values go across in the environment rather than on the command");
+    line("rem  line, so that a space in a path cannot come apart on the way.");
+    line("powershell -NoProfile -ExecutionPolicy Bypass -Command "
+         "\"$ErrorActionPreference='Stop'; "
+         "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:DF_LNK); "
+         "$s.TargetPath=$env:DF_BROWSER; "
+         "$s.Arguments='--app=' + $env:DF_URL; "
+         "$s.IconLocation=$env:DF_BROWSER + ',0'; "
+         "$s.Description='Dental Flow - opens in its own window'; "
+         "$s.Save()\"");
+    line("");
+    line("if errorlevel 1 goto :failed");
+    line("if not exist \"%DF_LNK%\" goto :failed");
+    line("");
+    line("echo   Done. Dental Flow will open by itself when you next sign in.");
+    line("echo.");
+    line("echo   Browser:  %DF_NAME%");
+    line("echo   Shortcut: %DF_LNK%");
+    line("echo.");
+    line("echo   Want it on the desktop or taskbar too? Copy that shortcut");
+    line("echo   there, or right-click it and choose Pin to taskbar.");
+    line("echo   To undo all of this, delete that shortcut.");
+    line("echo.");
+    line("");
+    line("rem  Opening it once here is the whole check. Without it the only");
+    line("rem  way to find out whether this worked is to restart the computer.");
+    line("choice /c YN /n /m \"   Open Dental Flow now to check? [Y/N] \"");
+    line("if errorlevel 2 goto :eof");
+    line("start \"\" \"%DF_BROWSER%\" --app=%DF_URL%");
+    line("goto :eof");
+    line("");
+    line(":try");
+    line("if defined DF_BROWSER goto :eof");
+    line("if exist \"%~1\" (");
+    line("  set \"DF_BROWSER=%~1\"");
+    line("  set \"DF_NAME=%~2\"");
+    line(")");
+    line("goto :eof");
+    line("");
+    line(":nobrowser");
+    line("echo   Could not find Microsoft Edge or Google Chrome on this");
+    line("echo   computer.");
+    line("echo.");
+    line("echo   Dental Flow needs one of them to open in its own window.");
+    line("echo   Install either one, then run this again.");
+    line("echo.");
+    line("pause");
+    line("exit /b 1");
+    line("");
+    line(":failed");
+    line("echo   Windows would not create the shortcut.");
+    line("echo.");
+    line("echo   You can still do it by hand: press Windows+R, type");
+    line("echo   shell:startup, and make a shortcut in the folder that opens");
+    line("echo   whose target is exactly this:");
+    line("echo.");
+    line("echo      \"%DF_BROWSER%\" --app=%DF_URL%");
+    line("echo.");
+    line("pause");
+    line("exit /b 1");
 
-    DeleteFileW(lnkPath.c_str());
-    if (weInitialised) CoUninitialize();
-    if (!ok && error.empty()) error = "The shortcut could not be built.";
-    return ok;
+    out.swap(s);
+    return true;
 }
-
-bool browserAvailable(bool chrome) { return !findBrowser(chrome).empty(); }
 
 }  // namespace on

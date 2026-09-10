@@ -299,6 +299,10 @@ void serveConnection(SOCKET raw, Hub& hub) {
     // whatever the browser asked for, so a computer that bookmarked the name
     // gets a shortcut with the name in it and one that used the number gets
     // the number.
+    //
+    // What is served is the script that makes the shortcut, not the shortcut
+    // itself: Chromium refuses to save a .lnk and renames it to .download.
+    // See shortcut.cpp.
     if (p == "/setup/shortcut") {
         const bool chrome = icontains(req.query, "chrome");
         // The Host header is the address that actually worked from where the
@@ -306,14 +310,17 @@ void serveConnection(SOCKET raw, Hub& hub) {
         // process could work out about itself.
         std::string host = req.header("Host");
         if (host.empty()) host = "localhost";
-        std::string bytes, err;
-        if (!buildStartupShortcut("http://" + host, chrome, bytes, err)) {
-            conn.sendText(503, err);
+        std::string script, err;
+        if (!buildStartupScript("http://" + host, chrome, script, err)) {
+            // The address came from the request, so a refusal is about what
+            // was asked for rather than anything wrong on this end.
+            conn.sendText(400, err);
             return;
         }
         std::string extra =
-            "Content-Disposition: attachment; filename=\"Dental Flow.lnk\"\r\n";
-        conn.send(200, "application/octet-stream", bytes, extra);
+            "Content-Disposition: attachment; "
+            "filename=\"Set up Dental Flow.cmd\"\r\n";
+        conn.send(200, "application/octet-stream", script, extra);
         return;
     }
 

@@ -60,23 +60,31 @@
 
   <div class="card">
     <h2>2. Have it open by itself at startup</h2>
-    <p>This downloads a shortcut that opens Dental Flow in its own window — no
-      tabs, no address bar, and <strong>nothing to press</strong>.</p>
+    <p>This downloads a small setup file. Run it on this computer and Dental
+      Flow will open by itself in its own window at sign-in — no tabs, no
+      address bar, and <strong>nothing to press</strong>.</p>
     <div class="row">
-      <a class="btn" id="dl-edge" href="/setup/shortcut">Download the shortcut (Edge)</a>
-      <a class="btn secondary" id="dl-chrome" href="/setup/shortcut?chrome">Chrome version</a>
+      <a class="btn" id="dl-edge" href="/setup/shortcut">Set up this computer (Edge)</a>
+      <a class="btn secondary" id="dl-chrome" href="/setup/shortcut?chrome">Prefer Chrome</a>
     </div>
     <div id="dlerror" class="note fail" hidden></div>
     <ol style="margin-top:18px">
-      <li>Press <kbd>Windows</kbd> + <kbd>R</kbd>, type <code>shell:startup</code>
-        and press Enter. A folder opens.</li>
-      <li>Drag the downloaded <code>Dental Flow</code> shortcut into it.</li>
-      <li>That's it. Restart the computer to check — Dental Flow should appear
-        on its own.</li>
+      <li>Download it. The browser will ask whether to keep it — choose
+        <strong>Keep</strong>. It is a text file you can open and read.</li>
+      <li>Double-click <code>Set up Dental Flow</code> in your downloads.
+        Windows may ask whether to run it; choose <strong>Run</strong>.</li>
+      <li>It offers to open Dental Flow straight away, so you can see it
+        worked. After that it opens on its own at every sign-in.</li>
     </ol>
-    <p class="hint">Want it on the desktop or taskbar as well? Copy the same
-      shortcut there, or right-click it and choose Pin to taskbar.</p>
-    <div class="note">Why a shortcut rather than the <strong>⧉ Pop out</strong>
+    <p class="hint">Do this on each computer that should open Dental Flow
+      automatically. Either button works whichever browser you have — the
+      setup file uses the one you chose if it is installed, and the other if it
+      is not. To undo it, delete the <code>Dental Flow</code> shortcut it puts
+      in your Startup folder.</p>
+    <div class="note">Why a setup file rather than the shortcut itself:
+      browsers refuse to save Windows shortcuts and rename them to
+      <code>.download</code>, so the shortcut has to be made here rather than
+      sent. And why a shortcut rather than the <strong>⧉ Pop out</strong>
       button: browsers only allow a page to open a window when a person clicks
       something, so that button can never fire by itself at startup. This
       shortcut asks the browser directly, so nobody has to press anything.</div>
@@ -114,9 +122,10 @@
     } catch { e.target.textContent = 'Select the address above and copy it'; }
   };
 
-  // The shortcut is built by the server, on the server. If the browser it is
-  // built against is not installed *there*, say so plainly rather than
-  // handing over a download that silently does nothing.
+  // Ask for the setup file once before letting the download start, so that a
+  // server which has gone away says so here rather than handing over a file
+  // that turns out to be an error page. Which browser is installed is the
+  // script's question to answer, on the computer it runs on, not this one's.
   for (const id of ['dl-edge', 'dl-chrome']) {
     document.getElementById(id).addEventListener('click', async (ev) => {
       const url = ev.currentTarget.getAttribute('href');

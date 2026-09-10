@@ -1,10 +1,10 @@
 # Signs one file with Azure Artifact Signing (formerly Trusted Signing).
 #
-#   powershell -File packaging\sign.ps1 <file-to-sign>
+#   powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1 <file-to-sign>
 #
 # Wired into package.bat by setting, before you run it:
 #
-#     set DENTALFLOW_SIGN_CMD=powershell -File packaging\sign.ps1
+#     set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
 #
 # package.bat then calls this for DentalFlow.exe before it is copied into the
 # zip, passing the file as the one argument. Anything non-zero coming back

@@ -67,6 +67,9 @@ echo  Compiling and linking...
 cl %CXXFLAGS% %SOURCES% build\app.res /FeDentalFlow.exe %LDFLAGS% %LIBS%
 if errorlevel 1 goto :failed
 
+call :sign "%CD%\DentalFlow.exe"
+if errorlevel 1 exit /b 1
+
 echo.
 echo  Built:  DentalFlow.exe
 echo.
@@ -95,3 +98,33 @@ exit /b 1
 echo.
 echo  BUILD FAILED - see the errors above.
 exit /b 1
+
+rem ---------------------------------------------------------------------
+rem  :sign <file>   - signs in place, or does nothing if signing is not
+rem  set up. The same subroutine, and the same variable, as package.bat.
+rem
+rem  Give it a command that takes the file to sign as its one argument:
+rem
+rem      set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
+rem
+rem  This is worth doing on a development machine and not only for a
+rem  release. Smart App Control refuses to start an unsigned exe at all,
+rem  so where it is turned on a fresh build cannot be run even once until
+rem  it carries a signature - and every rebuild drops the signature again,
+rem  which is why this lives in the build rather than in package.bat only.
+rem  package.bat also understands DENTALFLOW_SIGN_PFX; one variable is
+rem  enough here.
+rem ---------------------------------------------------------------------
+:sign
+if not defined DENTALFLOW_SIGN_CMD (
+  echo  Not signed. Where Smart App Control is on this will not start -
+  echo  set DENTALFLOW_SIGN_CMD, see the note at the foot of this script.
+  exit /b 0
+)
+echo  Signing %~nx1 ...
+call %DENTALFLOW_SIGN_CMD% "%~1"
+if errorlevel 1 (
+  echo  ERROR: signing %~nx1 failed.
+  exit /b 1
+)
+exit /b 0

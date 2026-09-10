@@ -31,6 +31,12 @@ cl /nologo /std:c++17 /O1 /EHsc /MD /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX ^
   /link /INCREMENTAL:NO ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib
 if errorlevel 1 ( echo  BUILD FAILED & exit /b 1 )
 
+rem  Smart App Control will not start an unsigned exe, and a test binary
+rem  is rebuilt constantly, so without this the suite cannot be run at all
+rem  on a machine that has it turned on. See the note beside :sign below.
+call :sign "%CD%\build\selftest.exe"
+if errorlevel 1 exit /b 1
+
 echo.
 build\selftest.exe
 exit /b %errorlevel%
@@ -38,3 +44,30 @@ exit /b %errorlevel%
 :nocompiler
 echo  ERROR: no C++ compiler found - see build.bat
 exit /b 1
+
+rem ---------------------------------------------------------------------
+rem  :sign <file>   - signs in place, or does nothing if signing is not
+rem  set up. A copy of the subroutine in build.bat and package.bat, which
+rem  share the variable; nothing links them, so a fix here needs applying
+rem  there too.
+rem
+rem      set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
+rem
+rem  Signing every test build is a round trip to the signing service, so
+rem  it happens only when that variable is set. Leave it unset on a
+rem  machine without Smart App Control and the suite runs as it always did.
+rem ---------------------------------------------------------------------
+:sign
+if not defined DENTALFLOW_SIGN_CMD (
+  echo  Not signed. Where Smart App Control is on the self-test will not
+  echo  start - set DENTALFLOW_SIGN_CMD, see the note at the foot of this
+  echo  script.
+  exit /b 0
+)
+echo  Signing %~nx1 ...
+call %DENTALFLOW_SIGN_CMD% "%~1"
+if errorlevel 1 (
+  echo  ERROR: signing %~nx1 failed.
+  exit /b 1
+)
+exit /b 0

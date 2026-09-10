@@ -30,7 +30,7 @@ rem  or, for anything that is not a plain .pfx - a hardware token, or a cloud
 rem  service such as Azure Artifact Signing (formerly Trusted Signing) - give a
 rem  command that takes the file to sign as its one argument:
 rem
-rem      set DENTALFLOW_SIGN_CMD=powershell -File packaging\sign.ps1
+rem      set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
 rem
 rem  packaging\sign.ps1 is a ready-made script for exactly that. Signing is
 rem  worth doing here: an unsigned exe makes SmartScreen warn the one person

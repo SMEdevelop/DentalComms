@@ -66,6 +66,15 @@
   }
   #saved-msg { text-align: center; font-weight: 700; color: var(--green); margin-top: 12px; min-height: 1.4em; }
   .backlink { display: inline-block; margin-bottom: 18px; color: var(--blue); font-weight: 700; text-decoration: none; }
+  /* A link that reads as a button. Deliberately not .btn-big: that is the
+     green Save button's shape, and this saves nothing - it leaves the page. */
+  .setup-btn {
+    display: inline-block; text-decoration: none;
+    border: 2px solid var(--blue); color: var(--blue); background: none;
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 1rem; font-weight: 700;
+  }
+  .setup-btn:hover { background: var(--blue); color: #fff; }
 </style>
 </head>
 <body>
@@ -129,6 +138,19 @@
 
   <button id="save" class="btn-big">Save changes</button>
   <p id="saved-msg"></p>
+
+  <!-- Below Save on purpose. Everything above is office-wide and takes
+       effect everywhere once saved; this is a per-computer job that saves
+       nothing, and an admin who has just renamed a room should not be left
+       wondering whether it needs saving too. -->
+  <div class="card">
+    <h3>Set up this computer</h3>
+    <p class="hint">Have Dental Flow open by itself, in its own window, when
+       this computer starts up — no tabs, no address bar, nothing to press.
+       This one is per computer rather than for the whole office, so run it
+       once on each. Nothing here is saved by the button above.</p>
+    <a class="setup-btn" href="/setup">🖥️ Set up this computer</a>
+  </div>
 </main>
 
 <script>

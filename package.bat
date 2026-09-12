@@ -111,8 +111,18 @@ if defined DENTALFLOW_SIGN_PFX (
 rem ---- sign the executable -------------------------------------------
 rem  Before it is copied into the staging folder, so the zip carries the
 rem  signed copy rather than the bare build output.
-call :sign "DentalFlow.exe"
-if errorlevel 1 exit /b 1
+rem
+rem  build.bat has already signed it when DENTALFLOW_SIGN_CMD is set - and
+rem  it stops the build if that fails, so getting here means it worked.
+rem  Signing again would be a second round trip to the signing service for
+rem  a signature identical to the one already on the file. The .pfx route
+rem  is still ours to do: build.bat implements only the command one.
+if defined DENTALFLOW_SIGN_CMD (
+  echo  Signed by build.bat already.
+) else (
+  call :sign "DentalFlow.exe"
+  if errorlevel 1 exit /b 1
+)
 
 if not exist dist mkdir dist
 

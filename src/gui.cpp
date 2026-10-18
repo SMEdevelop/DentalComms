@@ -25,8 +25,10 @@ enum {
     IDM_TRAY_EXIT,
 };
 
-const wchar_t kClassName[] = L"DentalFlowServer";
-const wchar_t kRunValue[] = L"DentalFlow";
+const wchar_t kClassName[] = L"DentalCommsServer";
+const wchar_t kRunValue[] = L"DentalComms";
+// The value it was registered under before the rename from Dental Flow.
+const wchar_t kOldRunValue[] = L"DentalFlow";
 
 GuiInfo g_info;
 HWND g_wnd = nullptr;
@@ -45,7 +47,7 @@ int S(int px) { return MulDiv(px, g_dpi, 96); }
 // Drawn rather than shipped as a .ico, for the same reason the rest of this
 // program has no binary assets: nothing to lose when the folder is moved, and
 // identical on every machine. A blue rounded square with a white speech
-// bubble - Dental Flow is a message board, so it should look like one.
+// bubble - Dental Comms is a message board, so it should look like one.
 HICON makeIcon(int size) {
     HDC screen = GetDC(nullptr);
     HDC dc = CreateCompatibleDC(screen);
@@ -136,13 +138,13 @@ std::string addressBlock() {
     if (g_info.localOnly) {
         out +=
             "\r\nStaff computers CANNOT connect right now.\r\n"
-            "Dental Flow holds back on ";
+            "Dental Comms holds back on ";
         out += g_info.networkName;
         out +=
             " networks because it has no\r\npassword on it. If this is your "
             "office network, tell Windows so:\r\n"
             "Settings > Network & internet > (your connection) > set the\r\n"
-            "network profile to Private, then start Dental Flow again.\r\n";
+            "network profile to Private, then start Dental Comms again.\r\n";
         return out;
     }
 
@@ -200,8 +202,8 @@ void addTray() {
     g_tray.uCallbackMessage = WM_TRAY;
     g_tray.hIcon = g_iconSm;
     const std::string tip = g_info.localOnly
-                                ? "Dental Flow - this computer only"
-                                : "Dental Flow is running";
+                                ? "Dental Comms - this computer only"
+                                : "Dental Comms is running";
     wcsncpy_s(g_tray.szTip, widen(tip).c_str(), _TRUNCATE);
     g_trayAdded = Shell_NotifyIconW(NIM_ADD, &g_tray) != FALSE;
 }
@@ -225,7 +227,7 @@ void showWindow() {
 
 void trayMenu() {
     HMENU m = CreatePopupMenu();
-    AppendMenuW(m, MF_STRING, IDM_TRAY_SHOW, L"Open Dental Flow");
+    AppendMenuW(m, MF_STRING, IDM_TRAY_SHOW, L"Open Dental Comms");
     AppendMenuW(m, MF_STRING, IDM_TRAY_COPY, L"Copy the staff address");
     AppendMenuW(m, MF_STRING, IDM_TRAY_OPEN, L"Open in a browser");
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
@@ -233,7 +235,7 @@ void trayMenu() {
                 MF_STRING | (runAtSignInEnabled() ? MF_CHECKED : 0),
                 IDM_TRAY_STARTUP, L"Start with Windows");
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(m, MF_STRING, IDM_TRAY_EXIT, L"Turn Dental Flow off");
+    AppendMenuW(m, MF_STRING, IDM_TRAY_EXIT, L"Turn Dental Comms off");
 
     POINT pt;
     GetCursorPos(&pt);
@@ -279,8 +281,8 @@ void paint(HWND hwnd) {
     SetTextColor(dc, RGB(20, 20, 20));
     const std::string title =
         g_info.officeName.empty()
-            ? std::string("Dental Flow is running")
-            : g_info.officeName + " - Dental Flow is running";
+            ? std::string("Dental Comms is running")
+            : g_info.officeName + " - Dental Comms is running";
     DrawTextW(dc, widen(title).c_str(), -1, &line,
               DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 
@@ -374,7 +376,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 case IDM_TRAY_STARTUP: {
                     std::string err;
                     if (!setRunAtSignIn(!runAtSignInEnabled(), err))
-                        MessageBoxW(hwnd, widen(err).c_str(), L"Dental Flow",
+                        MessageBoxW(hwnd, widen(err).c_str(), L"Dental Comms",
                                     MB_ICONWARNING | MB_OK);
                     return 0;
                 }
@@ -403,7 +405,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
 
         case WM_CLOSE:
-            // The old console window turned Dental Flow off when it was
+            // The old console window turned Dental Comms off when it was
             // closed, and people close windows. Closing now hides it instead,
             // and the tray menu is where turning it off lives.
             if (!g_reallyQuitting) {
@@ -456,7 +458,7 @@ bool setRunAtSignIn(bool on, std::string& error) {
     HKEY key;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, kRunKey, 0, nullptr, 0, KEY_WRITE,
                         nullptr, &key, nullptr) != ERROR_SUCCESS) {
-        error = "Windows would not let Dental Flow change the startup setting.";
+        error = "Windows would not let Dental Comms change the startup setting.";
         return false;
     }
     LONG rc;
@@ -470,15 +472,41 @@ bool setRunAtSignIn(bool on, std::string& error) {
     }
     RegCloseKey(key);
     if (rc != ERROR_SUCCESS) {
-        error = "Windows would not let Dental Flow change the startup "
+        error = "Windows would not let Dental Comms change the startup "
                 "setting: " + lastErrorMessage((DWORD)rc);
         return false;
     }
     return true;
 }
 
+void migrateRunAtSignIn() {
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0,
+                      KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS)
+        return;
+    wchar_t buf[1024];
+    DWORD size = sizeof(buf) - sizeof(wchar_t), type = 0;
+    if (RegQueryValueExW(key, kOldRunValue, nullptr, &type, (LPBYTE)buf,
+                         &size) == ERROR_SUCCESS &&
+        type == REG_SZ) {
+        buf[size / sizeof(wchar_t)] = L'\0';
+        // Only an entry that started the copy in this folder is ours to
+        // move: someone upgraded this copy and had it starting at sign-in.
+        // The trailing slash stops "...\Office" matching "...\Office2".
+        if (icontains(narrow(buf), exeDir() + "\\")) {
+            const std::wstring cmd = quotedExePath();
+            if (RegSetValueExW(key, kRunValue, 0, REG_SZ,
+                               (const BYTE*)cmd.c_str(),
+                               (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) ==
+                ERROR_SUCCESS)
+                RegDeleteValueW(key, kOldRunValue);
+        }
+    }
+    RegCloseKey(key);
+}
+
 void showProblem(const std::string& text) {
-    MessageBoxW(nullptr, widen(text).c_str(), L"Dental Flow",
+    MessageBoxW(nullptr, widen(text).c_str(), L"Dental Comms",
                 MB_ICONWARNING | MB_OK);
 }
 
@@ -506,7 +534,7 @@ int runGui(HINSTANCE inst, const GuiInfo& info, bool startHidden,
     const int x = work.left + ((work.right - work.left) - w) / 2;
     const int y = work.top + ((work.bottom - work.top) - h) / 3;
 
-    g_wnd = CreateWindowExW(0, kClassName, L"Dental Flow",
+    g_wnd = CreateWindowExW(0, kClassName, L"Dental Comms",
                             WS_OVERLAPPEDWINDOW, x, y, w, h, nullptr, nullptr,
                             inst, nullptr);
     if (!g_wnd) return 1;

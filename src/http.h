@@ -86,7 +86,7 @@ void netCleanup();
 // about port.txt still makes sense.
 //
 // With localOnly set, this binds to 127.0.0.1 rather than every interface, so
-// the machine itself can use Dental Flow while nothing on the network can even
+// the machine itself can use Dental Comms while nothing on the network can even
 // open a connection. That is enforced by the operating system, not by us
 // deciding what to answer.
 SOCKET listenOn(int port, bool localOnly, std::string& error, bool& portInUse);

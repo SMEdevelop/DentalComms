@@ -10,7 +10,7 @@
 
 namespace on {
 
-// What Dental Flow should do on a given kind of network.
+// What Dental Comms should do on a given kind of network.
 enum class NetMode {
     Office,     // listen on every interface - staff computers can reach it
     LocalOnly,  // listen on this computer only; nobody else can connect
@@ -20,7 +20,7 @@ enum class NetMode {
 const char* netModeName(NetMode m);
 NetMode netModeFromName(const std::string& s, NetMode fallback);
 
-// Dental Flow has no passwords, so where it answers matters. The defaults trust
+// Dental Comms has no passwords, so where it answers matters. The defaults trust
 // the two networks Windows considers yours and hold back on the one it
 // doesn't - a laptop that wanders onto cafe Wi-Fi does not start serving the
 // office's message board to the room.
@@ -60,7 +60,7 @@ struct Config {
     // All on by default, because each one alone has a way of being missed:
     // sound is lost in a noisy surgery or on a tablet somebody muted, a flash
     // is lost on anyone not looking at the screen, and both are lost on a
-    // station whose Dental Flow window is behind the practice software.
+    // station whose Dental Comms window is behind the practice software.
     // Turning them all off leaves the alert silent and still - it appears on
     // screen and waits.
     bool notifySound = true;
@@ -69,7 +69,7 @@ struct Config {
 
     // Start straight into the notification area, with no window. What the
     // office wants once it is set up and working: the server computer comes
-    // on in the morning and Dental Flow is simply there. The --tray switch
+    // on in the morning and Dental Comms is simply there. The --tray switch
     // does the same thing for one launch, and is what the run-at-sign-in
     // entry uses.
     bool startMinimized = false;

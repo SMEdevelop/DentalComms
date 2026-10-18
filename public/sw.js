@@ -1,4 +1,4 @@
-// Dental Flow's service worker exists for exactly one reason: Chrome will not
+// Dental Comms's service worker exists for exactly one reason: Chrome will not
 // offer "Install this site as an app" without one. Edge is more lenient, which
 // is why installing worked there and not in Chrome.
 //
@@ -14,7 +14,7 @@
 //
 // It deliberately caches NOTHING.
 //
-// That is not laziness, it is the whole point. Dental Flow is a live message
+// That is not laziness, it is the whole point. Dental Comms is a live message
 // board whose worst possible failure is looking alive when it is not — an
 // offline cache would happily serve yesterday's page to a station whose server
 // is switched off, with the rooms drawn and the buttons working and no message

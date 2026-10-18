@@ -1,7 +1,7 @@
 #include <windows.h>
 
 // Version resource: this is what Explorer's Details tab and "right-click ->
-// Properties" read. The G++ build shipped without one, so DentalFlow.exe
+// Properties" read. The G++ build shipped without one, so DentalComms.exe
 // showed no version at all; the MSVC build stamps it properly.
 //
 // Keep these numbers in step with src\version.h. package.bat parses the
@@ -21,12 +21,12 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName",     "SMEdevelop"
-            VALUE "FileDescription", "Dental Flow - intraoffice messaging server"
+            VALUE "FileDescription", "Dental Comms - intraoffice messaging server"
             VALUE "FileVersion",     "0.9.1.0"
-            VALUE "InternalName",    "DentalFlow"
-            VALUE "LegalCopyright",  "Copyright (c) 2026 SMEdevelop. All rights reserved."
-            VALUE "OriginalFilename","DentalFlow.exe"
-            VALUE "ProductName",     "Dental Flow"
+            VALUE "InternalName",    "DentalComms"
+            VALUE "LegalCopyright",  "Copyright (c) 2026 SMEdevelop. MIT License."
+            VALUE "OriginalFilename","DentalComms.exe"
+            VALUE "ProductName",     "Dental Comms"
             VALUE "ProductVersion",  "0.9.1.0 beta"
         END
     END

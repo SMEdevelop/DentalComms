@@ -1,0 +1,152 @@
+# Builds Dental Comms on a GitHub-hosted runner, has it signed through SignPath
+# Foundation, and attaches the result to a DRAFT GitHub release.
+#
+#   git tag v0.9.2-beta && git push origin v0.9.2-beta
+#
+# The tag has to match the version package.bat derives from src\app.rc (plus
+# its PRERELEASE marker), or the run stops before anything is signed.
+#
+# Run it by hand from the Actions tab to check the build without releasing:
+# that run is never signed, and its files are on the run's summary page.
+#
+# Signing is switched off until these exist under Settings -> Secrets and
+# variables -> Actions:
+#
+#   variable  SIGNPATH_ORGANIZATION_ID   the organization id SignPath shows
+#   secret    SIGNPATH_API_TOKEN         API token of a SignPath CI user with
+#                                        the Submitter role on the project
+#
+# and SignPath has a project with the slug "DentalComms", linked to the
+# predefined "GitHub.com" trusted build system, with a "release-signing"
+# signing policy and the artifact configuration in packaging\signpath\.
+#
+# The signing request waits for an approver in SignPath, so a tagged run sits
+# at the "Sign" step until someone approves it there (up to an hour).
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the draft release
+  actions: read     # lets SignPath fetch the uploaded artifact
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && github.ref_type == 'tag' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Read the version the same way package.bat will, and check the tag
+      # against it now - before anything is sent off to be signed.
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $rc = Get-Content src/app.rc -Raw
+          if ($rc -notmatch 'VALUE "FileVersion",\s*"(\d+)\.(\d+)\.(\d+)') {
+            throw 'Could not read FileVersion out of src\app.rc'
+          }
+          $version = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+          $pkg = Get-Content package.bat -Raw
+          if ($pkg -match '(?m)^set "PRERELEASE=([^"]*)"' -and $Matches[1]) {
+            $version += "-$($Matches[1])"
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match the source, which is version $version. Tag it v$version."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "Version $version, signing: $env:SIGN"
+
+      - name: Test
+        shell: cmd
+        run: run_tests.bat
+
+      - name: Build
+        shell: cmd
+        run: build.bat
+
+      - name: Upload the exe for signing
+        id: upload-exe
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-exe
+          path: DentalComms.exe
+          if-no-files-found: error
+
+      - name: Sign the exe
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: DentalComms
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/exe
+
+      - name: Put the signed exe in place, and check its signature
+        if: env.SIGN == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item signed/exe/DentalComms.exe DentalComms.exe -Force
+          $sig = Get-AuthenticodeSignature DentalComms.exe
+          if ($sig.Status -ne 'Valid') { throw "DentalComms.exe is not validly signed: $($sig.Status) $($sig.StatusMessage)" }
+          "Signed by $($sig.SignerCertificate.Subject)"
+
+      - name: Package
+        shell: cmd
+        run: package.bat --prebuilt
+
+      - name: Check the package
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          foreach ($f in "dist/DentalComms-$env:VERSION-windows-x64.zip",
+                         "dist/DentalComms-$env:VERSION-source.zip") {
+            if (-not (Test-Path $f)) { throw "package.bat did not produce $f" }
+          }
+
+      - name: Keep the files with this run
+        uses: actions/upload-artifact@v7
+        with:
+          name: DentalComms-${{ steps.version.outputs.version }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Draft the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $files = (Get-ChildItem dist/*.zip).FullName
+          if ($env:SIGN -eq 'true') {
+            $signing = 'Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). See the [code signing policy](https://github.com/SMEdevelop/DentalComms#code-signing-policy).'
+          } else {
+            $signing = '**These files are not signed.** See the [code signing policy](https://github.com/SMEdevelop/DentalComms#code-signing-policy).'
+          }
+          Set-Content notes.md "_Release notes go here._`n`n---`n`n$signing"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @files --clobber
+          } else {
+            $extra = @()
+            if ($env:VERSION -like '*-*') { $extra += '--prerelease' }
+            gh release create $tag @files --draft @extra --title "Dental Comms $env:VERSION" --notes-file notes.md
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

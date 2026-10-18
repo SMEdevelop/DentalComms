@@ -51,21 +51,21 @@ rem  set up. A copy of the subroutine in build.bat and package.bat, which
 rem  share the variable; nothing links them, so a fix here needs applying
 rem  there too.
 rem
-rem      set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
+rem      set DENTALCOMMS_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
 rem
 rem  Signing every test build is a round trip to the signing service, so
 rem  it happens only when that variable is set. Leave it unset on a
 rem  machine without Smart App Control and the suite runs as it always did.
 rem ---------------------------------------------------------------------
 :sign
-if not defined DENTALFLOW_SIGN_CMD (
+if not defined DENTALCOMMS_SIGN_CMD (
   echo  Not signed. Where Smart App Control is on the self-test will not
-  echo  start - set DENTALFLOW_SIGN_CMD, see the note at the foot of this
+  echo  start - set DENTALCOMMS_SIGN_CMD, see the note at the foot of this
   echo  script.
   exit /b 0
 )
 echo  Signing %~nx1 ...
-call %DENTALFLOW_SIGN_CMD% "%~1"
+call %DENTALCOMMS_SIGN_CMD% "%~1"
 if errorlevel 1 (
   echo  ERROR: signing %~nx1 failed.
   exit /b 1

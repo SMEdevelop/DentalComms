@@ -2,16 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Dental Flow",
+      "name": "Debug Dental Comms",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/DentalFlow.exe",
+      "program": "${workspaceFolder}/DentalComms.exe",
       "args": [],
       "cwd": "${workspaceFolder}",
       "externalConsole": true,
       "MIMode": "gdb",
       "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
-      "preLaunchTask": "Build Dental Flow"
+      "preLaunchTask": "Build Dental Comms"
     },
     {
       "name": "Debug self-test",

@@ -1,9 +1,9 @@
-// Builds the script that makes Dental Flow open by itself at sign-in.
+// Builds the script that makes Dental Comms open by itself at sign-in.
 //
 // This exists because of a specific failure the office kept hitting. The
 // "⧉ Pop out" button in the page calls window.open(), and browsers only honour
 // that inside a real click - so it can never fire by itself at sign-in. A
-// staff computer that restarts comes up with Dental Flow as an ordinary tab
+// staff computer that restarts comes up with Dental Comms as an ordinary tab
 // behind everything else, and somebody has to notice and press a button.
 //
 // A Chromium browser started with --app=URL opens exactly the window the
@@ -96,26 +96,26 @@ bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
 
     line("@echo off");
     line("setlocal");
-    line("title Dental Flow - open at startup");
+    line("title Dental Comms - open at startup");
     line("");
-    line("rem  Dental Flow - make it open by itself when you sign in.");
+    line("rem  Dental Comms - make it open by itself when you sign in.");
     line("rem");
-    line("rem  The Dental Flow server built this for the address below. Run it");
-    line("rem  on each computer that should open Dental Flow automatically. It");
+    line("rem  The Dental Comms server built this for the address below. Run it");
+    line("rem  on each computer that should open Dental Comms automatically. It");
     line("rem  looks for the browser installed on THIS computer and puts a");
     line("rem  shortcut in your Startup folder. Nothing is installed and");
     line("rem  nothing is left running - delete that shortcut to undo it.");
     line("");
-    line("set \"DF_URL=" + url + "\"");
-    line("set \"DF_STARTUP=%APPDATA%\\Microsoft\\Windows\\Start "
+    line("set \"DC_URL=" + url + "\"");
+    line("set \"DC_STARTUP=%APPDATA%\\Microsoft\\Windows\\Start "
          "Menu\\Programs\\Startup\"");
-    line("set \"DF_LNK=%DF_STARTUP%\\Dental Flow.lnk\"");
-    line("set \"DF_BROWSER=\"");
-    line("set \"DF_NAME=\"");
+    line("set \"DC_LNK=%DC_STARTUP%\\Dental Comms.lnk\"");
+    line("set \"DC_BROWSER=\"");
+    line("set \"DC_NAME=\"");
     line("");
     line("echo.");
-    line("echo   Dental Flow");
-    line("echo   Address: %DF_URL%");
+    line("echo   Dental Comms");
+    line("echo   Address: %DC_URL%");
     line("echo.");
     line("");
     line("rem  The browser that was asked for first, then the other one. Which");
@@ -136,28 +136,33 @@ bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
              second[i].name + "\"");
 
     line("");
-    line("if not defined DF_BROWSER goto :nobrowser");
-    line("if not exist \"%DF_STARTUP%\" mkdir \"%DF_STARTUP%\"");
+    line("if not defined DC_BROWSER goto :nobrowser");
+    line("if not exist \"%DC_STARTUP%\" mkdir \"%DC_STARTUP%\"");
     line("");
     line("rem  A shortcut is a COM object, so PowerShell is what makes it. The");
     line("rem  values go across in the environment rather than on the command");
     line("rem  line, so that a space in a path cannot come apart on the way.");
     line("powershell -NoProfile -ExecutionPolicy Bypass -Command "
          "\"$ErrorActionPreference='Stop'; "
-         "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:DF_LNK); "
-         "$s.TargetPath=$env:DF_BROWSER; "
-         "$s.Arguments='--app=' + $env:DF_URL; "
-         "$s.IconLocation=$env:DF_BROWSER + ',0'; "
-         "$s.Description='Dental Flow - opens in its own window'; "
+         "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:DC_LNK); "
+         "$s.TargetPath=$env:DC_BROWSER; "
+         "$s.Arguments='--app=' + $env:DC_URL; "
+         "$s.IconLocation=$env:DC_BROWSER + ',0'; "
+         "$s.Description='Dental Comms - opens in its own window'; "
          "$s.Save()\"");
     line("");
     line("if errorlevel 1 goto :failed");
-    line("if not exist \"%DF_LNK%\" goto :failed");
+    line("if not exist \"%DC_LNK%\" goto :failed");
     line("");
-    line("echo   Done. Dental Flow will open by itself when you next sign in.");
+    line("rem  The shortcut this made before the rename to Dental Comms. Left");
+    line("rem  in place it would open a second window at every sign-in.");
+    line("if exist \"%DC_STARTUP%\\Dental Flow.lnk\" "
+         "del \"%DC_STARTUP%\\Dental Flow.lnk\"");
+    line("");
+    line("echo   Done. Dental Comms will open by itself when you next sign in.");
     line("echo.");
-    line("echo   Browser:  %DF_NAME%");
-    line("echo   Shortcut: %DF_LNK%");
+    line("echo   Browser:  %DC_NAME%");
+    line("echo   Shortcut: %DC_LNK%");
     line("echo.");
     line("echo   Want it on the desktop or taskbar too? Copy that shortcut");
     line("echo   there, or right-click it and choose Pin to taskbar.");
@@ -166,16 +171,16 @@ bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
     line("");
     line("rem  Opening it once here is the whole check. Without it the only");
     line("rem  way to find out whether this worked is to restart the computer.");
-    line("choice /c YN /n /m \"   Open Dental Flow now to check? [Y/N] \"");
+    line("choice /c YN /n /m \"   Open Dental Comms now to check? [Y/N] \"");
     line("if errorlevel 2 goto :eof");
-    line("start \"\" \"%DF_BROWSER%\" --app=%DF_URL%");
+    line("start \"\" \"%DC_BROWSER%\" --app=%DC_URL%");
     line("goto :eof");
     line("");
     line(":try");
-    line("if defined DF_BROWSER goto :eof");
+    line("if defined DC_BROWSER goto :eof");
     line("if exist \"%~1\" (");
-    line("  set \"DF_BROWSER=%~1\"");
-    line("  set \"DF_NAME=%~2\"");
+    line("  set \"DC_BROWSER=%~1\"");
+    line("  set \"DC_NAME=%~2\"");
     line(")");
     line("goto :eof");
     line("");
@@ -183,7 +188,7 @@ bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
     line("echo   Could not find Microsoft Edge or Google Chrome on this");
     line("echo   computer.");
     line("echo.");
-    line("echo   Dental Flow needs one of them to open in its own window.");
+    line("echo   Dental Comms needs one of them to open in its own window.");
     line("echo   Install either one, then run this again.");
     line("echo.");
     line("pause");
@@ -196,7 +201,7 @@ bool buildStartupScript(const std::string& url, bool chrome, std::string& out,
     line("echo   shell:startup, and make a shortcut in the folder that opens");
     line("echo   whose target is exactly this:");
     line("echo.");
-    line("echo      \"%DF_BROWSER%\" --app=%DF_URL%");
+    line("echo      \"%DC_BROWSER%\" --app=%DC_URL%");
     line("echo.");
     line("pause");
     line("exit /b 1");

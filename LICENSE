@@ -1,66 +1,21 @@
-Dental Flow
-Copyright (c) 2026 SMEdevelop. All rights reserved.
+MIT License
 
-PROPRIETARY SOFTWARE
+Copyright (c) 2026 SMEdevelop
 
-This software, including its source code, documentation, and accompanying
-files (the "Software"), is proprietary and confidential. It is licensed, not
-sold, and no ownership passes to anyone who receives a copy.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-No permission is granted to any person to use, copy, reproduce, modify, adapt,
-merge, publish, distribute, sublicense, sell, or create derivative works from
-the Software, in whole or in part, except under a separate written agreement
-signed by the copyright holder. Any such agreement grants only the rights it
-states expressly, and all other rights are reserved.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-NO WARRANTY
-
-THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
-KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, ACCURACY, AND
-NON-INFRINGEMENT.
-
-WITHOUT LIMITING THE FOREGOING, THE COPYRIGHT HOLDER DOES NOT WARRANT THAT THE
-SOFTWARE WILL BE UNINTERRUPTED, TIMELY, SECURE, OR ERROR-FREE, THAT DEFECTS
-WILL BE CORRECTED, OR THAT ANY MESSAGE, ALERT, CHIME, OR NOTIFICATION SENT,
-DISPLAYED, OR RECORDED BY THE SOFTWARE WILL BE DELIVERED, RECEIVED, HEARD,
-SEEN, ACKNOWLEDGED, OR ACTED UPON.
-
-LIMITATION OF LIABILITY
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
-COPYRIGHT HOLDER OR ANY CONTRIBUTOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
-STRICT LIABILITY, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH
-THE SOFTWARE OR THE USE OF, OR INABILITY TO USE, THE SOFTWARE.
-
-THIS EXCLUSION INCLUDES, WITHOUT LIMITATION, ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, PUNITIVE, OR CONSEQUENTIAL DAMAGES; ANY LOSS OF PROFITS,
-REVENUE, DATA, GOODWILL, OR BUSINESS INTERRUPTION; AND ANY LOSS, HARM, INJURY,
-OR CLAIM OF ANY KIND ARISING FROM A MESSAGE THAT WAS DELAYED, MISDIRECTED,
-DUPLICATED, ALTERED, NOT DELIVERED, NOT DISPLAYED, NOT HEARD, OR NOT SEEN,
-EVEN IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
-DAMAGES. THE FOREGOING APPLIES REGARDLESS OF WHETHER ANY LIMITED REMEDY FAILS
-OF ITS ESSENTIAL PURPOSE.
-
-NOT A MEDICAL DEVICE - NOT FOR EMERGENCY USE
-
-The Software is a convenience tool for routine, non-urgent communication
-between rooms in an office. It is not a medical device, not a nurse-call,
-panic, duress, or emergency-notification system, and not a substitute for
-direct voice communication or for the established emergency procedures of the
-premises where it is used.
-
-The Software must not be relied upon for any urgent, clinical, life-safety, or
-time-critical purpose. Anyone operating it is responsible for maintaining an
-independent means of summoning help, for verifying that any important message
-was actually received, and for determining whether the Software is suitable
-and lawful for their intended use, including compliance with any regulations
-governing patient information.
-
-BY INSTALLING, RUNNING, OR USING THE SOFTWARE, YOU ACCEPT THESE TERMS. IF YOU
-DO NOT ACCEPT THEM, DO NOT INSTALL, RUN, OR USE THE SOFTWARE.
-
-If any provision of these terms is held unenforceable, it shall be modified to
-the minimum extent necessary to make it enforceable, and the remaining
-provisions shall remain in full force and effect.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

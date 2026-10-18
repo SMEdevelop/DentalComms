@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo.
-echo  Building Dental Flow...
+echo  Building Dental Comms...
 echo.
 
 rem ---- locate the Microsoft C++ compiler -------------------------------
@@ -39,7 +39,7 @@ for /f "delims=" %%V in ('cl 2^>^&1 ^| findstr /c:"Version"') do (
 if not exist build mkdir build
 if not exist build\obj mkdir build\obj
 
-rem  /MD links the C++ runtime dynamically, so DentalFlow.exe needs
+rem  /MD links the C++ runtime dynamically, so DentalComms.exe needs
 rem  msvcp140.dll, vcruntime140.dll and vcruntime140_1.dll beside it.
 rem  package.bat copies those three out of the Visual Studio redistributable
 rem  into the zip that goes to the office.
@@ -64,18 +64,18 @@ rc /nologo /fo build\app.res src\app.rc
 if errorlevel 1 goto :failed
 
 echo  Compiling and linking...
-cl %CXXFLAGS% %SOURCES% build\app.res /FeDentalFlow.exe %LDFLAGS% %LIBS%
+cl %CXXFLAGS% %SOURCES% build\app.res /FeDentalComms.exe %LDFLAGS% %LIBS%
 if errorlevel 1 goto :failed
 
-call :sign "%CD%\DentalFlow.exe"
+call :sign "%CD%\DentalComms.exe"
 if errorlevel 1 exit /b 1
 
 echo.
-echo  Built:  DentalFlow.exe
+echo  Built:  DentalComms.exe
 echo.
-echo  Start it by double-clicking DentalFlow.exe, or run:
+echo  Start it by double-clicking DentalComms.exe, or run:
 echo.
-echo      DentalFlow.exe
+echo      DentalComms.exe
 echo.
 echo  Note: this is a /MD build. It starts here because Visual Studio is
 echo  installed on this machine. The copy that goes to the office must be the
@@ -105,24 +105,24 @@ rem  set up. The same subroutine, and the same variable, as package.bat.
 rem
 rem  Give it a command that takes the file to sign as its one argument:
 rem
-rem      set DENTALFLOW_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
+rem      set DENTALCOMMS_SIGN_CMD=powershell -NoProfile -ExecutionPolicy Bypass -File packaging\sign.ps1
 rem
 rem  This is worth doing on a development machine and not only for a
 rem  release. Smart App Control refuses to start an unsigned exe at all,
 rem  so where it is turned on a fresh build cannot be run even once until
 rem  it carries a signature - and every rebuild drops the signature again,
 rem  which is why this lives in the build rather than in package.bat only.
-rem  package.bat also understands DENTALFLOW_SIGN_PFX; one variable is
+rem  package.bat also understands DENTALCOMMS_SIGN_PFX; one variable is
 rem  enough here.
 rem ---------------------------------------------------------------------
 :sign
-if not defined DENTALFLOW_SIGN_CMD (
+if not defined DENTALCOMMS_SIGN_CMD (
   echo  Not signed. Where Smart App Control is on this will not start -
-  echo  set DENTALFLOW_SIGN_CMD, see the note at the foot of this script.
+  echo  set DENTALCOMMS_SIGN_CMD, see the note at the foot of this script.
   exit /b 0
 )
 echo  Signing %~nx1 ...
-call %DENTALFLOW_SIGN_CMD% "%~1"
+call %DENTALCOMMS_SIGN_CMD% "%~1"
 if errorlevel 1 (
   echo  ERROR: signing %~nx1 failed.
   exit /b 1

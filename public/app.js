@@ -1,12 +1,22 @@
-/* Dental Flow client */
+/* Dental Comms client */
 (() => {
   const $ = id => document.getElementById(id);
 
-  let config = { officeName: 'Dental Flow', stations: [], presets: [] };
+  // Before the rename to Dental Comms these were kept under "dentalflow-".
+  // Carry them over, so no computer has to be told which room it is again.
+  for (const k of ['station', 'tip-multi']) {
+    const old = localStorage.getItem('dentalflow-' + k);
+    if (old === null) continue;
+    if (localStorage.getItem('dentalcomms-' + k) === null)
+      localStorage.setItem('dentalcomms-' + k, old);
+    localStorage.removeItem('dentalflow-' + k);
+  }
+
+  let config = { officeName: 'Dental Comms', stations: [], presets: [] };
   let signals = [];            // all active signals office-wide
   let recent = [];
   let listening = [];          // station ids with a browser open right now
-  let myStation = localStorage.getItem('dentalflow-station') || null;
+  let myStation = localStorage.getItem('dentalcomms-station') || null;
   let selected = new Set();    // station ids picked to receive the message
   let pendingSent = null;      // my last outgoing send: { ids, total, seen }
   let toastTimer = null;
@@ -79,7 +89,7 @@
   }
 
   // ---------------- taskbar attention ----------------
-  // For the station whose Dental Flow window is behind the practice software.
+  // For the station whose Dental Comms window is behind the practice software.
   // The chime and the screen flash both assume somebody is in front of this
   // window; when nobody is, the only place left to shout is the taskbar.
   //
@@ -105,7 +115,7 @@
 
   function normalTitle() {
     return (myStation ? stationName(myStation) + ' — ' : '') +
-           (config.officeName || 'Dental Flow');
+           (config.officeName || 'Dental Comms');
   }
 
   // A dot in the message's own color, drawn rather than shipped so it can
@@ -158,7 +168,7 @@
       const n = new Notification(stationName(sig.from) +
                                  (sig.to === 'all' ? ' (to everyone)' : ''), {
         body: sig.note || sig.label,
-        tag: 'dentalflow-' + sig.id,    // a repeat replaces, never stacks
+        tag: 'dentalcomms-' + sig.id,    // a repeat replaces, never stacks
         icon: 'icon-192.png',
         requireInteraction: true,       // stays up until it is dealt with
         // The page's own chime is the office's sound and Settings decides
@@ -224,7 +234,7 @@
   }
 
   function renderHeader() {
-    $('office-name').textContent = config.officeName || 'Dental Flow';
+    $('office-name').textContent = config.officeName || 'Dental Comms';
     $('my-station-btn').textContent = myStation ? stationName(myStation) : 'Choose…';
     // Every message anyone sends redraws this. Writing the title here while
     // the taskbar is blinking would land on whichever half of the blink was
@@ -343,7 +353,7 @@
       b.textContent = s.name;
       b.onclick = () => {
         myStation = s.id;
-        localStorage.setItem('dentalflow-station', myStation);
+        localStorage.setItem('dentalcomms-station', myStation);
         $('setup').hidden = true;
         // Reopen the stream so the server knows which station this browser is
         // now sitting at, and everyone else's screens stop calling it empty.
@@ -400,7 +410,7 @@
       renderGrid(); renderSendBar();
       showToast(`Sent to ${listNames(to)} — waiting for them to see it…`, { cancel: true });
     } catch {
-      showToast('⚠️ Could not send — is the Dental Flow server running?', { error: true });
+      showToast('⚠️ Could not send — is the Dental Comms server running?', { error: true });
     }
   }
 
@@ -489,7 +499,7 @@
   // afterwards. Remembered per computer, alongside the station name, because
   // that is what having seen it means here - one screen clearing the tip is
   // not the rest of the office claiming to know it.
-  const TIP_KEY = 'dentalflow-tip-multi';
+  const TIP_KEY = 'dentalcomms-tip-multi';
   if (!localStorage.getItem(TIP_KEY)) $('grid-title').hidden = false;
   $('grid-title-done').onclick = () => {
     localStorage.setItem(TIP_KEY, '1');
@@ -606,7 +616,7 @@
       config = JSON.parse(e.data);
       if (myStation && !config.stations.some(s => s.id === myStation)) {
         myStation = null;
-        localStorage.removeItem('dentalflow-station');
+        localStorage.removeItem('dentalcomms-station');
         connect();  // drop this browser's claim on a station that is now gone
       }
       renderAll();
@@ -616,15 +626,16 @@
   }
 
   // ---------------- pop-out window ----------------
-  // Opens Dental Flow in a small separate window (no tabs/toolbars) that's
+  // Opens Dental Comms in a small separate window (no tabs/toolbars) that's
   // easy to resize and keep in a corner. Inside that window, hide the button.
-  if (window.name === 'DentalFlowPopup') {
+  // The second name is the one a window opened before the rename still has.
+  if (window.name === 'DentalCommsPopup' || window.name === 'DentalFlowPopup') {
     $('popout-btn').hidden = true;
   } else {
     $('popout-btn').onclick = () => {
-      const w = window.open(location.origin, 'DentalFlowPopup',
+      const w = window.open(location.origin, 'DentalCommsPopup',
         'popup=yes,width=430,height=720,left=80,top=80,resizable=yes');
-      if (w) { w.focus(); showToast('Dental Flow opened in its own little window — you can resize it and keep it in a corner.'); }
+      if (w) { w.focus(); showToast('Dental Comms opened in its own little window — you can resize it and keep it in a corner.'); }
       else { showToast('⚠️ Your browser blocked the pop-up — allow pop-ups for this site and try again.'); }
     };
   }

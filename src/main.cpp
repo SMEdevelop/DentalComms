@@ -1,4 +1,4 @@
-// Dental Flow - simple intraoffice messaging.
+// Dental Comms - simple intraoffice messaging.
 //
 // A C++ port of the original Node server. The browser side is untouched: this
 // serves the very same public/ folder and speaks the same API, so staff
@@ -55,7 +55,7 @@ int pickPort() {
 on::Hub g_hub;
 SOCKET g_listen = INVALID_SOCKET;
 
-// Called from the UI thread when the user turns Dental Flow off. Dropping the
+// Called from the UI thread when the user turns Dental Comms off. Dropping the
 // listener is what unblocks the accept thread; without it the process would
 // sit in accept() forever and never exit.
 void stopServing() {
@@ -86,7 +86,7 @@ void acceptLoop() {
     }
 }
 
-// Started with --tray (or /tray), Dental Flow goes straight to the
+// Started with --tray (or /tray), Dental Comms goes straight to the
 // notification area. That is how the Run key launches it, so a computer that
 // switches itself on in the morning does not greet whoever unlocks it with a
 // window across their screen.
@@ -101,11 +101,11 @@ bool wantsTray(const std::string& cmdLine) {
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
     std::string err;
     if (!on::netStartup(err)) {
-        on::showProblem("Dental Flow could not start: " + err);
+        on::showProblem("Dental Comms could not start: " + err);
         return 1;
     }
 
-    // Where Dental Flow is willing to answer depends on the kind of network
+    // Where Dental Comms is willing to answer depends on the kind of network
     // this computer is on, so the settings have to be read before binding.
     on::Config cfg = on::loadConfig();
     const on::NetProfile profile = on::currentProfile();
@@ -113,13 +113,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
 
     if (mode == on::NetMode::Off) {
         on::showProblem(
-            std::string("Dental Flow did not start.\n\nWindows says this "
+            std::string("Dental Comms did not start.\n\nWindows says this "
                         "computer is on a ") +
             on::profileName(profile) +
-            " network, and Dental Flow is set to stay off on those.\n\n"
+            " network, and Dental Comms is set to stay off on those.\n\n"
             "If this is your office network, tell Windows so: Settings > "
             "Network & internet > (your connection) > set the network profile "
-            "to Private. Then start Dental Flow again.\n\n"
+            "to Private. Then start Dental Comms again.\n\n"
             "To change the rule itself, edit \"networks\" in "
             "data\\config.json.");
         on::netCleanup();
@@ -136,14 +136,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
             _snprintf_s(msg, sizeof(msg), _TRUNCATE,
                         "Another program on this computer is already using "
                         "port %d.\n\nFix: create a file named port.txt in the "
-                        "Dental Flow folder containing a different number (for "
-                        "example 8123), then start Dental Flow again.\n\n"
+                        "Dental Comms folder containing a different number (for "
+                        "example 8123), then start Dental Comms again.\n\n"
                         "Remember to update the bookmarks on the other "
                         "computers to the new number.",
                         port);
             on::showProblem(msg);
         } else {
-            on::showProblem("Dental Flow could not start: " + err);
+            on::showProblem("Dental Comms could not start: " + err);
         }
         on::netCleanup();
         return 1;
@@ -155,7 +155,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
     // where to bind, rather than in the window - which should not have to know
     // anything about networks.
     on::GuiInfo info;
-    info.version = DF_VERSION_STRING;
+    info.version = DC_VERSION_STRING;
     info.port = port;
     info.networkName = on::profileName(profile);
     info.localOnly = localOnly;
@@ -164,13 +164,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmdLine, int) {
         // The computer's own name goes first, and is the one to bookmark: it
         // keeps working when the router hands this machine a different number
         // after a restart, which is the failure that breaks every bookmark in
-        // the office at once and looks like Dental Flow having died.
+        // the office at once and looks like Dental Comms having died.
         info.computer = computerName();
         if (!info.computer.empty()) info.addresses.push_back(info.computer);
         for (const auto& ip : on::localIPv4()) info.addresses.push_back(ip);
     }
 
     std::thread server(acceptLoop);
+    on::migrateRunAtSignIn();
 
     // Either the switch on this launch or the setting in config.json will do
     // it: the switch is what the run-at-sign-in entry passes, and the setting

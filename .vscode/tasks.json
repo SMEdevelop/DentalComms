@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build Dental Flow",
+      "label": "Build Dental Comms",
       "type": "shell",
       "command": "${workspaceFolder}/build.bat",
       "group": { "kind": "build", "isDefault": true },

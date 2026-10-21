@@ -2,7 +2,7 @@
 //
 // Windows labels every network Domain, Private or Public, and that label is
 // the best signal available for "is it safe to let other computers reach me".
-// Dental Flow has no passwords, so on an untrusted network it should not be
+// Dental Comms has no passwords, so on an untrusted network it should not be
 // answering strangers.
 #pragma once
 #include <string>

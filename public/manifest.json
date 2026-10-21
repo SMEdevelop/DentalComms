@@ -1,6 +1,6 @@
 {
-  "name": "Dental Flow",
-  "short_name": "Dental Flow",
+  "name": "Dental Comms",
+  "short_name": "Dental Comms",
   "description": "Simple intraoffice messaging — tap a room, tap a message.",
   "start_url": "/",
   "display": "standalone",

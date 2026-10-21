@@ -19,7 +19,7 @@ bool resolveStaticPath(const std::string& urlPath, const std::string& publicDir,
                        std::string& fullPath);
 std::string mimeFor(const std::string& path);
 
-// Who Dental Flow is willing to be spoken to by. Exposed for the self-test.
+// Who Dental Comms is willing to be spoken to by. Exposed for the self-test.
 std::string hostOnly(const std::string& hostHeader);
 bool hostIsOurs(const std::string& hostHeader, const std::string& arrivedOn,
                 const std::string& thisComputer,

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration "exe": signs DentalComms.exe.
+
+  Not read by anything in this repository. It is the text to paste into the
+  SignPath project (Artifact configurations -> slug "exe"), kept here so it is
+  reviewed and versioned like the rest of the build. The workflow uploads
+  DentalComms.exe on its own, and actions/upload-artifact wraps it in a zip,
+  which is why the root element is <zip-file>.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="DentalComms.exe" product-name="Dental Comms">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Set up this computer — Dental Flow</title>
+<title>Set up this computer — Dental Comms</title>
 <meta name="theme-color" content="#1c7ed6">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
@@ -44,7 +44,7 @@
   <a class="backlink" href="/">← Back to messages</a>
   <h1>Set up this computer</h1>
   <p class="lede">Do this once per computer. It takes about a minute, and then
-    Dental Flow opens in its own window every morning without anyone
+    Dental Comms opens in its own window every morning without anyone
     touching it.</p>
 
   <div class="card">
@@ -61,7 +61,7 @@
   <div class="card">
     <h2>2. Have it open by itself at startup</h2>
     <p>This downloads a small setup file. Run it on this computer and Dental
-      Flow will open by itself in its own window at sign-in — no tabs, no
+      Comms will open by itself in its own window at sign-in — no tabs, no
       address bar, and <strong>nothing to press</strong>.</p>
     <div class="row">
       <a class="btn" id="dl-edge" href="/setup/shortcut">Set up this computer (Edge)</a>
@@ -71,15 +71,15 @@
     <ol style="margin-top:18px">
       <li>Download it. The browser will ask whether to keep it — choose
         <strong>Keep</strong>. It is a text file you can open and read.</li>
-      <li>Double-click <code>Set up Dental Flow</code> in your downloads.
+      <li>Double-click <code>Set up Dental Comms</code> in your downloads.
         Windows may ask whether to run it; choose <strong>Run</strong>.</li>
-      <li>It offers to open Dental Flow straight away, so you can see it
+      <li>It offers to open Dental Comms straight away, so you can see it
         worked. After that it opens on its own at every sign-in.</li>
     </ol>
-    <p class="hint">Do this on each computer that should open Dental Flow
+    <p class="hint">Do this on each computer that should open Dental Comms
       automatically. Either button works whichever browser you have — the
       setup file uses the one you chose if it is installed, and the other if it
-      is not. To undo it, delete the <code>Dental Flow</code> shortcut it puts
+      is not. To undo it, delete the <code>Dental Comms</code> shortcut it puts
       in your Startup folder.</p>
     <div class="note">Why a setup file rather than the shortcut itself:
       browsers refuse to save Windows shortcuts and rename them to
@@ -95,14 +95,14 @@
     <p>Same result by a different route — its own icon, its own window. Use
       whichever you prefer; you do not need both.</p>
     <div class="row">
-      <button class="btn" id="install" hidden>Install Dental Flow</button>
+      <button class="btn" id="install" hidden>Install Dental Comms</button>
       <span id="install-manual" class="hint" style="margin:0">
         In <strong>Edge</strong>: menu (⋯) → Apps → Install this site as an app.
         In <strong>Chrome</strong>: menu (⋮) → Cast, save and share → Install
         page as app.
       </span>
     </div>
-    <div id="installed" class="note">Dental Flow is already installed on this
+    <div id="installed" class="note">Dental Comms is already installed on this
       computer. Its icon opens it in its own window — put a copy of that icon
       in the <code>shell:startup</code> folder from step 2 and it will open at
       sign-in too.</div>
@@ -135,7 +135,7 @@
       const box = document.getElementById('dlerror');
       box.textContent = res
         ? await res.text()
-        : 'The Dental Flow server could not be reached to build the shortcut.';
+        : 'The Dental Comms server could not be reached to build the shortcut.';
       box.hidden = false;
     });
   }

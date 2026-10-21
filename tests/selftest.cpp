@@ -1,4 +1,4 @@
-// Dental Flow self-test - every non-networking subsystem, checked against the
+// Dental Comms self-test - every non-networking subsystem, checked against the
 // behaviour of the Node server this replaced.
 #include "http.h"  // must precede <windows.h> users
 
@@ -59,7 +59,7 @@ static js::Value makeConfigBody(int stations, int presets) {
 }
 
 int main() {
-    std::printf("Dental Flow self-test\n");
+    std::printf("Dental Comms self-test\n");
     std::printf("resource root: %s\n", on::resourceRoot().c_str());
 
     // ---------------------------------------------------------------------
@@ -191,13 +191,13 @@ int main() {
         on::Config tuned = on::Config::defaults();
         tuned.escalateAfterSeconds = 30;
         tuned.expireAfterSeconds = 300;
-        tuned.allowedHosts = {"dentalflow.local"};
+        tuned.allowedHosts = {"dentalcomms.local"};
         on::saveConfig(tuned);
         on::Config reread = on::loadConfig();
         check(reread.escalateAfterSeconds == 30 && reread.expireAfterSeconds == 300,
               "the unanswered-alert delays reload");
         check(reread.allowedHosts.size() == 1 &&
-                  reread.allowedHosts[0] == "dentalflow.local",
+                  reread.allowedHosts[0] == "dentalcomms.local",
               "so do the extra host names");
 
         js::Value silly = js::Value::object();
@@ -552,10 +552,10 @@ int main() {
     }
 
     // ---------------------------------------------------------------------
-    section("Who Dental Flow will answer");
+    section("Who Dental Comms will answer");
     {
         const std::vector<std::string> none;
-        const std::vector<std::string> extra = {"dentalflow.local"};
+        const std::vector<std::string> extra = {"dentalcomms.local"};
 
         check(on::hostOnly("192.168.1.25:3272") == "192.168.1.25",
               "the port comes off a Host header");
@@ -573,7 +573,7 @@ int main() {
               "whatever the capitals");
         check(on::hostIsOurs("reception-pc.office.lan", "192.168.1.25", "RECEPTION-PC", none),
               "including with the domain tacked on");
-        check(on::hostIsOurs("dentalflow.local", "192.168.1.25", "RECEPTION-PC", extra),
+        check(on::hostIsOurs("dentalcomms.local", "192.168.1.25", "RECEPTION-PC", extra),
               "and any name the office added to allowedHosts");
 
         check(!on::hostIsOurs("evil.example", "192.168.1.25", "RECEPTION-PC", none),
@@ -663,7 +663,7 @@ int main() {
         guard.networks.pub = on::NetMode::Off;
         guard.escalateAfterSeconds = 45;
         guard.expireAfterSeconds = 90;
-        guard.allowedHosts = {"dentalflow.local"};
+        guard.allowedHosts = {"dentalcomms.local"};
         std::string err;
         js::Value edit = makeConfigBody(2, 2);
         check(guard.applyFromJson(edit, err), "a settings-page save succeeds");
@@ -730,7 +730,7 @@ int main() {
         // The startup window offers three ways in: localhost, this computer's
         // name, and each address above. Every one of them has to be a name the
         // server will actually answer to - printing an address that is then
-        // refused with "Dental Flow does not answer to that address" is worse
+        // refused with "Dental Comms does not answer to that address" is worse
         // than not printing it, because it looks like the program is broken.
         const std::vector<std::string> none;
         const std::string me = computerName();
@@ -886,11 +886,15 @@ int main() {
             // office - and every staff computer would need doing again.
             check(script.find("http://RECEPTION-PC:3272") != std::string::npos,
                   "carrying the address it was asked for");
-            check(script.find("--app=%DF_URL%") != std::string::npos,
+            check(script.find("--app=%DC_URL%") != std::string::npos,
                   "opening it in its own window rather than a tab");
             check(script.find("Start Menu\\Programs\\Startup") !=
                       std::string::npos,
                   "and putting the shortcut where Windows starts things from");
+            check(script.find("del \"%DC_STARTUP%\\Dental Flow.lnk\"") !=
+                      std::string::npos,
+                  "removing the one made before the rename, so only one "
+                  "window opens");
 
             // A computer with only the other browser still has to end up set
             // up, so both are looked for whichever was asked for.

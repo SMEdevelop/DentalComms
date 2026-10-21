@@ -16,7 +16,7 @@ constexpr int kPingSeconds = 25;
 // How long a connection may say nothing at all before we give up on it. One
 // thread is held per connection, so a browser's speculative pre-connect, a
 // port scan, or a machine that slept mid-request would otherwise each cost a
-// thread for as long as Dental Flow stays up.
+// thread for as long as Dental Comms stays up.
 constexpr int kIdleSeconds = 20;
 
 std::string lowerExt(const std::string& path) {
@@ -133,7 +133,7 @@ bool originIsOurs(const std::string& origin, const std::string& hostHeader) {
 bool bodyIsJson(const std::string& contentType) {
     // A plain HTML form can only ever send urlencoded, multipart or text/plain
     // bodies, and anything else makes the browser ask permission first - which
-    // Dental Flow never grants. Insisting on JSON is therefore what keeps a
+    // Dental Comms never grants. Insisting on JSON is therefore what keeps a
     // page on the internet from posting to the office through a staff browser.
     return lower(trim(contentType)).rfind("application/json", 0) == 0;
 }
@@ -183,7 +183,7 @@ void serveConnection(SOCKET raw, Hub& hub) {
     const std::string& p = req.path;
     const bool isPost = iequals(req.method, "POST");
 
-    // Dental Flow has no passwords, which is a fair trade on the office's own
+    // Dental Comms has no passwords, which is a fair trade on the office's own
     // network. It is not a reason to also answer a web page that a member of
     // staff happens to have open, so requests are held to arriving under a
     // name that means this computer, and to not announcing themselves as
@@ -192,19 +192,19 @@ void serveConnection(SOCKET raw, Hub& hub) {
     if (!hostIsOurs(host, localAddressOf(raw), computerName(),
                     hub.allowedHosts())) {
         conn.sendText(403,
-                      "Dental Flow does not answer to that address.\r\n\r\n"
-                      "Use the address shown in the Dental Flow window. If your "
+                      "Dental Comms does not answer to that address.\r\n\r\n"
+                      "Use the address shown in the Dental Comms window. If your "
                       "office reaches it by\r\nsome other name, add that name "
                       "to \"allowedHosts\" in data\\config.json.\r\n");
         return;
     }
     if (!originIsOurs(req.header("Origin"), host)) {
-        conn.sendText(403, "Dental Flow does not take requests from other web "
+        conn.sendText(403, "Dental Comms does not take requests from other web "
                            "pages.\r\n");
         return;
     }
     if (isPost && !bodyIsJson(req.header("Content-Type"))) {
-        conn.sendText(403, "Dental Flow only accepts application/json here.\r\n");
+        conn.sendText(403, "Dental Comms only accepts application/json here.\r\n");
         return;
     }
 
@@ -319,7 +319,7 @@ void serveConnection(SOCKET raw, Hub& hub) {
         }
         std::string extra =
             "Content-Disposition: attachment; "
-            "filename=\"Set up Dental Flow.cmd\"\r\n";
+            "filename=\"Set up Dental Comms.cmd\"\r\n";
         conn.send(200, "application/octet-stream", script, extra);
         return;
     }

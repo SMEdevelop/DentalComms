@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Dental Flow — simple intraoffice messaging (BlueNote-style)
+ * Dental Comms — simple intraoffice messaging (BlueNote-style)
  * Zero dependencies: plain Node.js HTTP server + Server-Sent Events.
  * Run with:  node server.js   (then open http://localhost:3000)
  */
@@ -223,11 +223,11 @@ server.on('error', err => {
     console.log('');
     console.log(`  PROBLEM: another program on this computer is already using port ${PORT}.`);
     console.log('  Fix: create a file named port.txt in this folder containing a different');
-    console.log('  number (for example 8123), then start Dental Flow again.');
+    console.log('  number (for example 8123), then start Dental Comms again.');
     console.log('  Remember to update the bookmarks on the other computers to the new number.');
   } else {
     console.log('');
-    console.log('  PROBLEM: Dental Flow could not start: ' + err.message);
+    console.log('  PROBLEM: Dental Comms could not start: ' + err.message);
   }
   process.exit(1);
 });
@@ -238,7 +238,7 @@ server.listen(PORT, () => {
   for (const list of Object.values(nets))
     for (const n of list) if (n.family === 'IPv4' && !n.internal) addrs.push(n.address);
   console.log('');
-  console.log('  Dental Flow is running.');
+  console.log('  Dental Comms is running.');
   console.log(`  On this computer:  http://localhost:${PORT}`);
   for (const a of addrs) console.log(`  Other computers:   http://${a}:${PORT}`);
   console.log('');

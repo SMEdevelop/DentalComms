@@ -1,4 +1,4 @@
-# Build output. DentalFlow.exe is a build artifact, not source - ship it as a
+# Build output. DentalComms.exe is a build artifact, not source - ship it as a
 # GitHub Release asset rather than committing a 1.2 MB binary that changes on
 # every build and would bloat the history of every clone.
 /build/
@@ -11,7 +11,7 @@
 *.zip
 
 # Written at runtime, and holds the office's own live settings: station names,
-# quick-message buttons, allowed host names. Dental Flow recreates it with the
+# quick-message buttons, allowed host names. Dental Comms recreates it with the
 # defaults on first start, so a fresh clone needs nothing here.
 /data/config.json
 

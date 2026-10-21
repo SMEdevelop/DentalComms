@@ -1,6 +1,6 @@
 // The server's window and its notification-area icon.
 //
-// Dental Flow spent its first versions as a console program, which worked but
+// Dental Comms spent its first versions as a console program, which worked but
 // asked the office to understand something they should not have to: that a
 // black window full of text is load-bearing, and that closing it turns the
 // messaging off. Staff close windows. This replaces it with an ordinary small
@@ -41,11 +41,16 @@ int runGui(HINSTANCE inst, const GuiInfo& info, bool startHidden,
 
 // Add or remove this program from the per-user Run key, which is how Windows
 // starts something at sign-in. Deliberately the registry rather than a setting
-// in config.json: a copy of Dental Flow that is moved or deleted should not
+// in config.json: a copy of Dental Comms that is moved or deleted should not
 // leave the office with a startup entry pointing at nothing, and the registry
 // is the only place Windows will look.
 bool runAtSignInEnabled();
 bool setRunAtSignIn(bool on, std::string& error);
+
+// Before the rename to Dental Comms the Run entry was called "DentalFlow" and
+// started DentalFlow.exe. Moves one that started the copy in this folder over
+// to the new name and this exe, so an upgraded server still starts by itself.
+void migrateRunAtSignIn();
 
 // A message box that says what went wrong, for the failures that used to be
 // printed to a console nobody will see any more.

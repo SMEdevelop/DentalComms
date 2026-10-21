@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dental Flow — Settings</title>
+<title>Dental Comms — Settings</title>
 <meta name="theme-color" content="#1c7ed6">
 <link rel="stylesheet" href="style.css">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -80,7 +80,7 @@
 <body>
 
 <header id="topbar">
-  <div id="office-name">Dental Flow — Settings</div>
+  <div id="office-name">Dental Comms — Settings</div>
 </header>
 
 <main id="main">
@@ -123,12 +123,12 @@
     </label>
     <label class="check-row">
       <input type="checkbox" id="notify-taskbar">
-      <span>Blink the taskbar when Dental Flow is behind another window</span>
+      <span>Blink the taskbar when Dental Comms is behind another window</span>
     </label>
     <p class="hint" style="margin-top:12px;margin-bottom:0">
       Flashing is worth leaving on where a tablet may be muted, or the room is
       noisy. Blinking the taskbar is for a station that works in another
-      program all day with Dental Flow behind it — use <strong>⧉ Pop out</strong>
+      program all day with Dental Comms behind it — use <strong>⧉ Pop out</strong>
       there, so it has a taskbar button of its own to blink. The first message
       after that asks the computer for permission to show notifications; say
       yes. Turn all three off and a message still appears on screen and waits —
@@ -145,7 +145,7 @@
        wondering whether it needs saving too. -->
   <div class="card">
     <h3>Set up this computer</h3>
-    <p class="hint">Have Dental Flow open by itself, in its own window, when
+    <p class="hint">Have Dental Comms open by itself, in its own window, when
        this computer starts up — no tabs, no address bar, nothing to press.
        This one is per computer rather than for the whole office, so run it
        once on each. Nothing here is saved by the button above.</p>
@@ -159,7 +159,7 @@
   let config = null;
 
   // crypto.randomUUID() only exists on https:// or on the server computer's
-  // own localhost address — and staff reach Dental Flow at http://<address>,
+  // own localhost address — and staff reach Dental Comms at http://<address>,
   // where it is simply missing. So it is unusable exactly where this page is
   // used. getRandomValues carries no such restriction; build the same shape
   // from it by hand.

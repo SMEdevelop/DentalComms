@@ -1,4 +1,4 @@
-// A batch file that makes Dental Flow open by itself at sign-in, built for the
+// A batch file that makes Dental Comms open by itself at sign-in, built for the
 // address the office actually reaches this server on.
 //
 // See shortcut.cpp for why this is a script rather than the .lnk it used to

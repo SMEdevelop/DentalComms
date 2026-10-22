@@ -2,10 +2,15 @@
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-rem  Builds Dental Comms and produces the copy that goes to the office, in
+rem  Builds Dental Comms and produces the copies that go to the office, in
 rem  dist\:
 rem
-rem      DentalComms-<version>-windows-x64.zip
+rem      DentalComms-Setup-<version>.exe         installer (needs Inno Setup)
+rem      DentalComms-<version>-windows-x64.zip   portable copy, no install
+rem
+rem  Both carry the same files in the same layout. The installer picks the
+rem  folder (%LOCALAPPDATA%\Programs\Dental Comms), adds a Start menu entry
+rem  and an uninstaller, and moves an office over from a portable copy.
 rem
 rem  Since the move to MSVC the build links the C++ runtime dynamically (/MD),
 rem  so the zip carries msvcp140.dll, vcruntime140.dll and vcruntime140_1.dll
@@ -13,10 +18,10 @@ rem  beside DentalComms.exe. Without them the server will not start on a front
 rem  desk machine that has never had Visual Studio on it - it dies immediately
 rem  with a dialog naming the missing DLL, before printing anything. Copying
 rem  them next to the exe is Microsoft's supported "local deployment" and
-rem  needs no installer and no admin rights, which is the whole point of this
-rem  program: unzip it and double-click it.
+rem  needs no admin rights, which is the whole point of the portable copy:
+rem  unzip it and double-click it. The installer puts them in the same place.
 rem
-rem  data\ is deliberately NOT packaged. config.json holds one office's own
+rem  data\ is deliberately NOT packaged, in either. config.json holds one office's own
 rem  station names and settings; Dental Comms writes a fresh one with the
 rem  defaults on first start.
 rem
@@ -43,10 +48,28 @@ rem      package.bat --prebuilt
 rem
 rem  to package a DentalComms.exe that has already come back signed, instead
 rem  of building a fresh, unsigned one over the top of it. --prebuilt also
-rem  leaves signing alone: the exe is packaged exactly as it is.
+rem  leaves signing alone: the exe and the installer are packaged exactly as
+rem  they are, and CI has the installer signed afterwards.
+rem
+rem  The installer's setup engine needs a signature of its own - see "the
+rem  setup engine" further down - so CI also runs
+rem
+rem      package.bat --engine-only
+rem
+rem  to write the engine out to be signed and stop there, and then
+rem
+rem      package.bat --prebuilt --signed-engine
+rem
+rem  to build the installer around the engine once it has come back signed.
 
 set "PREBUILT="
-if /i "%~1"=="--prebuilt" set "PREBUILT=1"
+set "ENGINEONLY="
+set "SIGNEDENGINE="
+for %%A in (%*) do (
+  if /i "%%~A"=="--prebuilt"      set "PREBUILT=1"
+  if /i "%%~A"=="--engine-only"   set "ENGINEONLY=1"
+  if /i "%%~A"=="--signed-engine" set "SIGNEDENGINE=1"
+)
 
 echo.
 echo  Packaging Dental Comms...
@@ -102,6 +125,20 @@ set "PRERELEASE=beta"
 if defined PRERELEASE (set "FULLVER=%SHORTVER%-%PRERELEASE%") else (set "FULLVER=%SHORTVER%")
 echo  Version:  %FULLVER%   (from src\app.rc)
 
+rem ---- locate signtool, if we might need it ---------------------------
+set "SIGNTOOL="
+if defined DENTALCOMMS_SIGN_PFX (
+  for /f "delims=" %%S in ('where signtool.exe 2^>nul') do set "SIGNTOOL=%%S"
+  if "!SIGNTOOL!"=="" (
+    for /f "delims=" %%S in ('dir /b /s /o-n "%ProgramFiles(x86)%\Windows Kits\10\bin\*\x64\signtool.exe" 2^>nul') do (
+      if "!SIGNTOOL!"=="" set "SIGNTOOL=%%S"
+    )
+  )
+)
+
+rem  --engine-only builds nothing and packages nothing.
+if defined ENGINEONLY goto :installer
+
 rem ---- build ----------------------------------------------------------
 if defined PREBUILT (
   if not exist "DentalComms.exe" (
@@ -115,17 +152,6 @@ call "%~dp0build.bat"
 if errorlevel 1 (
   echo  Packaging stopped: the build failed.
   exit /b 1
-)
-
-rem ---- locate signtool, if we might need it ---------------------------
-set "SIGNTOOL="
-if defined DENTALCOMMS_SIGN_PFX (
-  for /f "delims=" %%S in ('where signtool.exe 2^>nul') do set "SIGNTOOL=%%S"
-  if "!SIGNTOOL!"=="" (
-    for /f "delims=" %%S in ('dir /b /s /o-n "%ProgramFiles(x86)%\Windows Kits\10\bin\*\x64\signtool.exe" 2^>nul') do (
-      if "!SIGNTOOL!"=="" set "SIGNTOOL=%%S"
-    )
-  )
 )
 
 rem ---- sign the executable -------------------------------------------
@@ -219,15 +245,121 @@ if errorlevel 1 (
 rmdir /s /q "dist\srcstage"
 echo  Built:  %SRCZIP%
 
+rem ---- installer ------------------------------------------------------
+:installer
+echo.
+rem  winget installs Inno per-user by default, so %LOCALAPPDATA% has to be
+rem  checked as well as the two Program Files locations.
+set "ISCC="
+for %%D in (
+  "%LOCALAPPDATA%\Programs\Inno Setup 6"
+  "%ProgramFiles(x86)%\Inno Setup 6"
+  "%ProgramFiles%\Inno Setup 6"
+) do (
+  if "!ISCC!"=="" if exist "%%~D\ISCC.exe" set "ISCC=%%~D\ISCC.exe"
+)
+if "!ISCC!"=="" for /f "delims=" %%S in ('where iscc.exe 2^>nul') do set "ISCC=%%S"
+
+if "!ISCC!"=="" if defined ENGINEONLY (
+  echo  ERROR: --engine-only needs Inno Setup, and it is not installed.
+  exit /b 1
+)
+if "!ISCC!"=="" (
+  echo  Skipping the installer: Inno Setup is not installed.
+  echo.
+  echo      winget install JRSoftware.InnoSetup
+  echo.
+  echo  The portable zip above is finished and usable either way.
+  goto :summary
+)
+
+rem ---- the setup engine -----------------------------------------------
+rem  An Inno Setup installer unpacks a second program into %TEMP% and runs
+rem  that: the setup engine, which is also the uninstaller. Signing the
+rem  finished installer does not sign it, and Smart App Control refuses an
+rem  unsigned engine whenever Microsoft's cloud has no verdict on that exact
+rem  file - which, for a fresh build, is often. So every signed build gives
+rem  the engine a signature of its own.
+rem
+rem  /DSignEngine turns on SignedUninstaller in installer.iss. The first
+rem  compile for a given Inno Setup version, icon and app version then writes
+rem  the engine to build\signed-engine\ and stops on purpose; once that file
+rem  is signed, every compile after it embeds the signature.
+set "SIGNENGINE="
+if defined ENGINEONLY           set "SIGNENGINE=1"
+if defined SIGNEDENGINE         set "SIGNENGINE=1"
+if defined DENTALCOMMS_SIGN_CMD set "SIGNENGINE=1"
+if defined DENTALCOMMS_SIGN_PFX set "SIGNENGINE=1"
+
+rem  CrtDir is passed in so installer.iss can pick up the same three DLLs
+rem  without repeating the lookup.
+set ISCCARGS=/Q "/DAppVersion=%SHORTVER%" "/DAppVersionFull=%FULLVER%" "/DCrtDir=%CRTDIR%"
+if defined SIGNENGINE (
+  set ISCCARGS=!ISCCARGS! /DSignEngine
+  if not exist "build\signed-engine" mkdir "build\signed-engine"
+)
+set "ISCCLOG=%TEMP%\dentalcomms-iscc-%RANDOM%.log"
+
+if defined ENGINEONLY (echo  Writing out the setup engine...) else (echo  Building the installer...)
+"!ISCC!" !ISCCARGS! "packaging\installer.iss" >"%ISCCLOG%" 2>&1
+if not errorlevel 1 goto :installerbuilt
+
+rem  A failed compile is either a real error or the deliberate stop above,
+rem  which names the engine file on a line of its own.
+set "ENGINE="
+if defined SIGNENGINE (
+  for /f "tokens=*" %%E in ('findstr /r /c:"signed-engine\\uninst-.*\.e32" "%ISCCLOG%"') do set "ENGINE=%%E"
+)
+if not defined ENGINE (
+  type "%ISCCLOG%"
+  del "%ISCCLOG%" 2>nul
+  echo  ERROR: the installer failed to compile.
+  exit /b 1
+)
+del "%ISCCLOG%" 2>nul
+if defined ENGINEONLY (
+  echo  Written, for signing:  !ENGINE!
+  exit /b 0
+)
+if defined SIGNEDENGINE (
+  echo  ERROR: --signed-engine, but this setup engine has not been signed:
+  echo         !ENGINE!
+  exit /b 1
+)
+call :sign "!ENGINE!"
+if errorlevel 1 exit /b 1
+"!ISCC!" !ISCCARGS! "packaging\installer.iss" >"%ISCCLOG%" 2>&1
+if errorlevel 1 (
+  type "%ISCCLOG%"
+  del "%ISCCLOG%" 2>nul
+  echo  ERROR: the installer failed to compile with the signed setup engine.
+  exit /b 1
+)
+
+:installerbuilt
+del "%ISCCLOG%" 2>nul
+if defined ENGINEONLY (
+  echo  This setup engine is already signed - nothing to write out.
+  exit /b 0
+)
+rem  Under --prebuilt (CI) the installer is left as it is: SignPath signs it
+rem  afterwards. On a PC this signs it with the certificate set up, if any.
+if not defined PREBUILT (
+  call :sign "dist\DentalComms-Setup-%FULLVER%.exe"
+  if errorlevel 1 exit /b 1
+)
+echo  Built:  dist\DentalComms-Setup-%FULLVER%.exe
+
+:summary
 echo.
 echo  ---------------------------------------------------------------
-dir /b dist\*.zip 2>nul
+dir /b dist\*.zip dist\*.exe 2>nul
 echo  ---------------------------------------------------------------
 if not defined DENTALCOMMS_SIGN_PFX if not defined DENTALCOMMS_SIGN_CMD (
   echo.
   echo  NOT SIGNED. Windows SmartScreen will warn the first person who runs
-  echo  this. Right-click - Properties - Unblock, or click "More info" then
-  echo  "Run anyway", is the way through it.
+  echo  this - "More info" then "Run anyway" is the way through it - and
+  echo  Smart App Control may refuse it outright.
   echo  See the top of this script for how to turn signing on.
 )
 echo.

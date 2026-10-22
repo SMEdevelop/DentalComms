@@ -1,10 +1,14 @@
 # Dental Comms 📣
 
-> **Formerly Dental Flow.** To upgrade, copy the new files into your existing
-> folder, delete `DentalFlow.exe`, and start `DentalComms.exe`. Your rooms and
-> buttons (`data\config.json`) stay as they are, "Start with Windows" carries
-> over, and staff computers keep the room they were set to. Windows Firewall
-> sees a new program name, so if it asks, click **Allow** again.
+> **Formerly Dental Flow.** To upgrade, turn Dental Flow off and run the
+> installer, `DentalComms-Setup-<version>.exe`. It copies your rooms and
+> buttons (`data\config.json`) over from the folder Dental Flow was starting
+> from, moves "Start with Windows" to the new copy, and tells you on its last
+> page which old folder you can now delete. Or stay portable: copy the new
+> files into your existing folder, delete `DentalFlow.exe`, and start
+> `DentalComms.exe`. Either way staff computers keep the room they were set
+> to. Windows Firewall sees a new program, so if it asks, click **Allow**
+> again.
 
 A simple intraoffice messaging system, like BlueNote Communicator. Staff tap a
 room, tap a big message button ("Doctor needed", "Patient is ready"), and that
@@ -42,7 +46,23 @@ any web browser.
 1. **Pick one Windows computer to be the "server."** Any office computer that
    stays on during the day works. Everyone's messages flow through it.
 
-2. **Unzip the whole folder**, then **double-click `DentalComms.exe`** inside it.
+2. **Install it** on that computer. From the
+   [releases page](https://github.com/SMEdevelop/DentalComms/releases), take
+   one of:
+
+   - **`DentalComms-Setup-<version>.exe`** (recommended): run it and click
+     through. It needs no administrator password, adds Dental Comms to the
+     Start menu, ticks **Start with Windows** for you, and can be removed
+     later from *Settings → Apps* like any other program. It installs to
+     `%LOCALAPPDATA%\Programs\Dental Comms`.
+   - **`DentalComms-<version>-windows-x64.zip`** (portable): **unzip the whole
+     folder** anywhere you can write to, then **double-click
+     `DentalComms.exe`** inside it. Nothing is installed; delete the folder to
+     remove it.
+
+   Both are the same program. If you started with the zip, running the
+   installer later moves you over: it copies your rooms and buttons from the
+   folder your old copy was starting from.
 
    A small window opens saying *"Dental Comms is running"* and lists the web
    addresses it can be reached at, with buttons to copy the staff address or
@@ -55,14 +75,16 @@ any web browser.
    console window stopped the whole office's messaging, which is not something
    a window close should ever do.
 
-   While you are there, right-click that icon and tick **Start with
-   Windows**. The server computer will then bring Dental Comms up by itself,
+   While you are there, right-click that icon and check **Start with
+   Windows** is ticked (the installer ticks it; with the zip, tick it
+   yourself). The server computer will then bring Dental Comms up by itself,
    straight into the notification area, whenever it restarts.
 
-   > There is nothing to install first, and no Node.js or anything else to
-   > download. Keep the folder together though: the `.dll` files next to
-   > `DentalComms.exe` are part of the program and it will not start without
-   > them, so unzip the folder rather than dragging just the `.exe` out of it.
+   > There is nothing else to install first, and no Node.js or anything else
+   > to download. With the zip, keep the folder together: the `.dll` files
+   > next to `DentalComms.exe` are part of the program and it will not start
+   > without them, so unzip the folder rather than dragging just the `.exe`
+   > out of it.
    >
    > If Windows Firewall asks whether to allow it on your network the first
    > time, click **Allow** — staff computers can't reach it otherwise.
@@ -228,17 +250,23 @@ steady tint instead.
 
 ## Tips
 
-- **Start automatically:** so Dental Comms comes back after a restart, press
-  `Win+R`, type `shell:startup`, and put a shortcut to `DentalComms.exe` in the
-  folder that opens.
+- **Start automatically:** so Dental Comms comes back after a restart,
+  right-click its icon by the clock and tick **Start with Windows**.
 - **It's private:** everything stays on your office network. Nothing goes to
   the internet.
+- **The Dental Comms folder** is where `DentalComms.exe` is:
+  `%LOCALAPPDATA%\Programs\Dental Comms` if you used the installer (paste that
+  into File Explorer's address bar), or wherever you unzipped it.
 - **Port number:** Dental Comms talks on port `3272` — an uncommon number chosen
   so it won't clash with other software. If it ever needs to change, create a
-  file named `port.txt` in this folder containing just a different number
-  (e.g. `8123`), restart Dental Comms, and update the bookmarks to match.
-- Settings are saved in `data/config.json`; back that file up if you've done a
-  lot of customizing.
+  file named `port.txt` in the Dental Comms folder containing just a different
+  number (e.g. `8123`), restart Dental Comms, and update the bookmarks to match.
+- Settings are saved in `data\config.json` in the Dental Comms folder; back
+  that file up if you've done a lot of customizing. Updating keeps it, and
+  uninstalling asks before deleting it.
+- **Updating:** right-click the icon by the clock, choose *Turn Dental Comms
+  off*, then run the new installer (or copy the new zip's files over the
+  old ones). The installer will not continue while Dental Comms is running.
 
 ## Which networks it will answer on
 
@@ -364,28 +392,38 @@ Prompt first:
 ```bash
 build.bat        # produces DentalComms.exe
 run_tests.bat    # 208 checks over every non-networking part
-package.bat      # the zip that goes to the office, in dist\
+package.bat      # the installer and the zip that go to the office, in dist\
 ```
+
+The installer needs [Inno Setup](https://jrsoftware.org/isinfo.php) 6
+(`winget install JRSoftware.InnoSetup`); without it `package.bat` still makes
+the zip and says it skipped the installer. The script is
+[`packaging/installer.iss`](packaging/installer.iss). It installs per-user,
+into `%LOCALAPPDATA%\Programs\Dental Comms`, because `data\config.json` and
+`port.txt` live beside the exe and have to be writable without running as
+administrator — the same layout as the zip, so the two behave identically.
 
 As of beta 0.7 the build links the C++ runtime dynamically (`/MD`), so
 `DentalComms.exe` needs `msvcp140.dll`, `vcruntime140.dll` and
-`vcruntime140_1.dll` beside it. `package.bat` puts them in the zip.
+`vcruntime140_1.dll` beside it. `package.bat` puts them in the zip and the
+installer.
 
 **Never copy the bare .exe to a front desk machine.** It starts here because
 this machine has Visual Studio on it and those DLLs are in `System32`; on a
 machine that has never had Visual Studio it dies immediately with a dialog
-naming the missing DLL, before it prints anything at all. Always send the zip
-`package.bat` makes — unzip it and double-click, still nothing to install.
+naming the missing DLL, before it prints anything at all. Always send the
+installer or the zip `package.bat` makes.
 
 ### Signing
 
 **Official releases are signed by CI, never on a developer's PC.** Pushing a
 `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml)
 on a GitHub-hosted runner. It runs the tests, builds `DentalComms.exe`, has it
-signed through SignPath, packages the zip around that signed exe, and attaches
-it to a **draft** release for you to check and publish. The signing request
-waits for an approver to accept it in SignPath, so a release cannot be signed
-without someone saying yes. Until the SignPath settings the workflow describes
+and the installer's setup engine signed through SignPath, packages the
+installer and the zip around them, has the installer itself signed, and
+attaches everything to a **draft** release for you to check and publish.
+Each signing request waits for an approver to accept it in SignPath, so a
+release cannot be signed without someone saying yes. Until the SignPath settings the workflow describes
 exist, it runs the same way unsigned, which is a useful check of the build
 itself.
 
@@ -410,7 +448,11 @@ outright rather than quietly producing an unsigned exe.
 
 `package.bat --prebuilt` skips the build and packages whatever
 `DentalComms.exe` already is. CI uses it to package the exe that has just come
-back signed; there is little reason to use it by hand.
+back signed; there is little reason to use it by hand. `--engine-only` and
+`--signed-engine` are CI's too: an Inno Setup installer runs a second program,
+its setup engine, from `%TEMP%`, and Smart App Control blocks that engine
+unless it carries a signature of its own. With signing set up, `package.bat`
+signs the engine as well.
 
 Signing does **not** silence SmartScreen immediately; reputation builds with
 download volume, and

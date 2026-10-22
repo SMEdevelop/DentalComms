@@ -1,7 +1,8 @@
-# Builds Dental Comms on a GitHub-hosted runner, has it signed through SignPath
-# Foundation, and attaches the result to a DRAFT GitHub release.
+# Builds Dental Comms on a GitHub-hosted runner - the installer, the portable
+# zip and the source zip - has it signed through SignPath Foundation, and
+# attaches the result to a DRAFT GitHub release.
 #
-#   git tag v0.9.2-beta && git push origin v0.9.2-beta
+#   git tag v0.9.3-beta && git push origin v0.9.3-beta
 #
 # The tag has to match the version package.bat derives from src\app.rc (plus
 # its PRERELEASE marker), or the run stops before anything is signed.
@@ -18,10 +19,11 @@
 #
 # and SignPath has a project with the slug "DentalComms", linked to the
 # predefined "GitHub.com" trusted build system, with a "release-signing"
-# signing policy and the artifact configuration in packaging\signpath\.
+# signing policy and the two artifact configurations in packaging\signpath\
+# (slugs "exe" and "installer").
 #
-# The signing request waits for an approver in SignPath, so a tagged run sits
-# at the "Sign" step until someone approves it there (up to an hour).
+# Each signing request waits for an approver in SignPath, so a tagged run sits
+# at each "Sign" step until someone approves it there (up to an hour each).
 
 name: Release
 
@@ -37,7 +39,7 @@ permissions:
 jobs:
   release:
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 150
     env:
       SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && github.ref_type == 'tag' }}
 
@@ -73,16 +75,55 @@ jobs:
         shell: cmd
         run: build.bat
 
-      - name: Upload the exe for signing
+      # Not every runner image carries Inno Setup, and package.bat quietly
+      # skips the installer without it - fine on a PC, wrong for a release.
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $find = {
+            Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          }
+          $iscc = & $find
+          if (-not $iscc) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            $iscc = & $find
+          }
+          if (-not $iscc) { throw 'Inno Setup is not installed and could not be installed' }
+          "Inno Setup: $($iscc.FullName)"
+          $iscc.DirectoryName | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Write out the setup engine for signing
+        if: env.SIGN == 'true'
+        shell: cmd
+        run: package.bat --engine-only
+
+      # One artifact for both, so they cost one approval. The engine travels
+      # as setup-engine.exe: Inno Setup names it uninst-<version>-<hash>.e32,
+      # and .e32 is not an extension SignPath lists for PE files.
+      - name: Stage the exe and setup engine
+        id: stage
+        if: env.SIGN == 'true'
+        shell: pwsh
+        run: |
+          $engine = @(Get-ChildItem build/signed-engine/*.e32)
+          if ($engine.Count -ne 1) { throw "Expected one setup engine in build\signed-engine, found $($engine.Count)" }
+          New-Item -ItemType Directory tosign -Force | Out-Null
+          Copy-Item DentalComms.exe tosign/DentalComms.exe
+          Copy-Item $engine[0].FullName tosign/setup-engine.exe
+          "engine=$($engine[0].Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload the exe and setup engine for signing
         id: upload-exe
         if: env.SIGN == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-exe
-          path: DentalComms.exe
+          path: tosign/
           if-no-files-found: error
 
-      - name: Sign the exe
+      - name: Sign the exe and setup engine
         if: env.SIGN == 'true'
         uses: signpath/github-action-submit-signing-request@v3
         with:
@@ -96,18 +137,22 @@ jobs:
           wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed/exe
 
-      - name: Put the signed exe in place, and check its signature
+      - name: Put the signed exe and setup engine in place
         if: env.SIGN == 'true'
         shell: pwsh
+        env:
+          ENGINE: ${{ steps.stage.outputs.engine }}
         run: |
           Copy-Item signed/exe/DentalComms.exe DentalComms.exe -Force
-          $sig = Get-AuthenticodeSignature DentalComms.exe
-          if ($sig.Status -ne 'Valid') { throw "DentalComms.exe is not validly signed: $($sig.Status) $($sig.StatusMessage)" }
-          "Signed by $($sig.SignerCertificate.Subject)"
+          Copy-Item signed/exe/setup-engine.exe "build/signed-engine/$env:ENGINE" -Force
 
+      # --signed-engine builds the installer around the engine signed above,
+      # and fails rather than shipping one whose engine is unsigned.
       - name: Package
         shell: cmd
-        run: package.bat --prebuilt
+        env:
+          ENGINE: ${{ env.SIGN == 'true' && '--signed-engine' || '' }}
+        run: package.bat --prebuilt %ENGINE%
 
       - name: Check the package
         shell: pwsh
@@ -115,15 +160,56 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           foreach ($f in "dist/DentalComms-$env:VERSION-windows-x64.zip",
-                         "dist/DentalComms-$env:VERSION-source.zip") {
+                         "dist/DentalComms-$env:VERSION-source.zip",
+                         "dist/DentalComms-Setup-$env:VERSION.exe") {
             if (-not (Test-Path $f)) { throw "package.bat did not produce $f" }
+          }
+
+      - name: Upload the installer for signing
+        id: upload-installer
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: dist/DentalComms-Setup-${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Sign the installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: DentalComms
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/installer
+
+      - name: Put the signed installer in place, and check every signature
+        if: env.SIGN == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $setup = "DentalComms-Setup-$env:VERSION.exe"
+          Copy-Item "signed/installer/$setup" "dist/$setup" -Force
+          $engines = (Get-ChildItem build/signed-engine/*.e32).FullName
+          foreach ($f in @('DentalComms.exe', "dist/$setup") + $engines) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne 'Valid') { throw "$f is not validly signed: $($sig.Status) $($sig.StatusMessage)" }
+            "$f - signed by $($sig.SignerCertificate.Subject)"
           }
 
       - name: Keep the files with this run
         uses: actions/upload-artifact@v7
         with:
           name: DentalComms-${{ steps.version.outputs.version }}
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.exe
           if-no-files-found: error
 
       - name: Draft the release
@@ -134,7 +220,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $files = (Get-ChildItem dist/*.zip).FullName
+          $files = (Get-ChildItem dist/*.zip, dist/*.exe).FullName
           if ($env:SIGN -eq 'true') {
             $signing = 'Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). See the [code signing policy](https://github.com/SMEdevelop/DentalComms#code-signing-policy).'
           } else {

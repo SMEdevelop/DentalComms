@@ -1,5 +1,11 @@
 #include <windows.h>
 
+// The icon Explorer, the Start menu shortcut and the installer show for
+// DentalComms.exe. The window and tray icon are still drawn at runtime by
+// makeIcon() in gui.cpp; app.ico is made from public\icon-512.png, the same
+// picture staff see on the web page, so all of them match.
+1 ICON "app.ico"
+
 // Version resource: this is what Explorer's Details tab and "right-click ->
 // Properties" read. The G++ build shipped without one, so DentalComms.exe
 // showed no version at all; the MSVC build stamps it properly.
@@ -7,8 +13,8 @@
 // Keep these numbers in step with src\version.h. package.bat parses the
 // FileVersion string below to name the zip, so it is the authoritative copy.
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,9,2,0
-PRODUCTVERSION 0,9,2,0
+FILEVERSION 0,9,3,0
+PRODUCTVERSION 0,9,3,0
 FILEFLAGSMASK 0x3fL
 // VS_FF_PRERELEASE: this is beta 0.8, and Windows will say so.
 FILEFLAGS VS_FF_PRERELEASE
@@ -22,12 +28,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",     "SMEdevelop"
             VALUE "FileDescription", "Dental Comms - intraoffice messaging server"
-            VALUE "FileVersion",     "0.9.2.0"
+            VALUE "FileVersion",     "0.9.3.0"
             VALUE "InternalName",    "DentalComms"
             VALUE "LegalCopyright",  "Copyright (c) 2026 SMEdevelop. MIT License."
             VALUE "OriginalFilename","DentalComms.exe"
             VALUE "ProductName",     "Dental Comms"
-            VALUE "ProductVersion",  "0.9.2.0 beta"
+            VALUE "ProductVersion",  "0.9.3.0 beta"
         END
     END
     BLOCK "VarFileInfo"

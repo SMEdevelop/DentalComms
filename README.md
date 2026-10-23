@@ -64,6 +64,11 @@ any web browser.
    installer later moves you over: it copies your rooms and buttons from the
    folder your old copy was starting from.
 
+   If Windows says **"Windows protected your PC"**, click **More info → Run
+   anyway**. Releases are not code-signed yet (see
+   [Code signing policy](#code-signing-policy)), so Windows doesn't know the
+   publisher.
+
    A small window opens saying *"Dental Comms is running"* and lists the web
    addresses it can be reached at, with buttons to copy the staff address or
    open it here.
@@ -416,16 +421,24 @@ installer or the zip `package.bat` makes.
 
 ### Signing
 
-**Official releases are signed by CI, never on a developer's PC.** Pushing a
-`v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml)
-on a GitHub-hosted runner. It runs the tests, builds `DentalComms.exe`, has it
-and the installer's setup engine signed through SignPath, packages the
-installer and the zip around them, has the installer itself signed, and
-attaches everything to a **draft** release for you to check and publish.
-Each signing request waits for an approver to accept it in SignPath, so a
-release cannot be signed without someone saying yes. Until the SignPath settings the workflow describes
-exist, it runs the same way unsigned, which is a useful check of the build
-itself.
+**Official releases are built by CI, never on a developer's PC, and are not
+signed yet.** Pushing a `v*` tag runs
+[`.github/workflows/release.yml`](.github/workflows/release.yml) on a
+GitHub-hosted runner. It runs the tests, builds `DentalComms.exe`, packages
+the installer and the zip, and attaches everything to a **draft** release for
+you to check and publish.
+
+The workflow is ready to sign through SignPath Foundation, which has not
+accepted the project yet. Once it does and the SignPath settings the workflow
+describes exist, the same run has the exe and the installer's setup engine
+signed, packages around them, and has the installer itself signed. Each
+signing request waits for an approver to accept it in SignPath, so a release
+cannot be signed without someone saying yes.
+
+**Pushing a tag that already has a release replaces that release's files**
+with a fresh build (`gh release upload --clobber`), which changes their
+checksums and breaks any winget manifest that points at them. Don't move or
+re-push a published tag.
 
 For copies you build and run yourself, `build.bat`, `run_tests.bat` and
 `package.bat` sign nothing unless you point them at a certificate, and say so
@@ -513,12 +526,19 @@ It predates everything in the two paragraphs above.
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io),
+**Releases are not signed yet.** Dental Comms has applied for free code
+signing from [SignPath Foundation](https://signpath.org), which asks for an
+established project first. Until it is approved, Windows shows release files
+as coming from an unknown publisher: SmartScreen warns before running them
+(**More info → Run anyway**), and Smart App Control may refuse them. What
+follows is how signing will work once it is in place.
+
+Free code signing will be provided by [SignPath.io](https://about.signpath.io),
 certificate by [SignPath Foundation](https://signpath.org).
 
-Windows shows the publisher of a signed release as **SignPath Foundation**.
+Windows will show the publisher of a signed release as **SignPath Foundation**.
 Only the files attached to a
-[GitHub release](https://github.com/SMEdevelop/DentalComms/releases) are
+[GitHub release](https://github.com/SMEdevelop/DentalComms/releases) will be
 signed, and only after they have been built from the tagged commit by the
 release workflow on a GitHub-hosted runner. Anything you build yourself with
 `build.bat` or `package.bat` is outside this policy.

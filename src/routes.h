@@ -13,6 +13,11 @@ namespace on {
 // stays on the page.
 void serveConnection(SOCKET raw, Hub& hub);
 
+// What /api/server answers with: { "staffAddress", "addresses": [...],
+// "port", "computer" }. Set by main.cpp whenever the picture changes, because
+// only it knows which port and network it ended up on.
+void publishServerInfo(const js::Value& info);
+
 // Exposed for the self-test: maps a request path to a file inside public/,
 // returning false for anything trying to escape that folder.
 bool resolveStaticPath(const std::string& urlPath, const std::string& publicDir,

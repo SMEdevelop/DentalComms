@@ -6,6 +6,9 @@
 // picture staff see on the web page, so all of them match.
 1 ICON "app.ico"
 
+// Common controls 6 and per-monitor DPI awareness - see app.manifest.
+1 24 "app.manifest"
+
 // Version resource: this is what Explorer's Details tab and "right-click ->
 // Properties" read. The G++ build shipped without one, so DentalComms.exe
 // showed no version at all; the MSVC build stamps it properly.
@@ -13,8 +16,8 @@
 // Keep these numbers in step with src\version.h. package.bat parses the
 // FileVersion string below to name the zip, so it is the authoritative copy.
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,9,3,0
-PRODUCTVERSION 0,9,3,0
+FILEVERSION 0,9,4,0
+PRODUCTVERSION 0,9,4,0
 FILEFLAGSMASK 0x3fL
 // VS_FF_PRERELEASE: this is beta 0.8, and Windows will say so.
 FILEFLAGS VS_FF_PRERELEASE
@@ -28,12 +31,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",     "SMEdevelop"
             VALUE "FileDescription", "Dental Comms - intraoffice messaging server"
-            VALUE "FileVersion",     "0.9.3.0"
+            VALUE "FileVersion",     "0.9.4.0"
             VALUE "InternalName",    "DentalComms"
             VALUE "LegalCopyright",  "Copyright (c) 2026 SMEdevelop. MIT License."
             VALUE "OriginalFilename","DentalComms.exe"
             VALUE "ProductName",     "Dental Comms"
-            VALUE "ProductVersion",  "0.9.3.0 beta"
+            VALUE "ProductVersion",  "0.9.4.0 beta"
         END
     END
     BLOCK "VarFileInfo"

@@ -37,13 +37,17 @@
   </section>
 </main>
 
-<!-- Pick-your-station screen -->
+<!-- First visit on this computer: pick the room, check the sound, and
+     (on a Windows desktop) have it open by itself. Later visits only ever
+     see the room picker, from the room name at the top right. -->
 <div id="setup" class="overlay" hidden>
   <div class="sheet">
-    <h1>Welcome! 👋</h1>
-    <p class="big">Which station is this computer at?</p>
-    <p class="muted">You only pick this once — it will be remembered.</p>
+    <p id="setup-step" class="step" hidden></p>
+    <h1 id="setup-title">Welcome! 👋</h1>
+    <p class="big" id="setup-lede">Which room is this computer in?</p>
+    <p class="muted" id="setup-hint">Tap one. You only do this once.</p>
     <div id="setup-grid" class="grid"></div>
+    <div id="setup-actions" class="setup-actions"></div>
   </div>
 </div>
 
@@ -94,7 +98,7 @@
 
 <!-- Shown whenever the live connection to the server is down, so nobody is
      looking at a screen that quietly stopped receiving messages. -->
-<div id="offline" hidden>⚠️ Not connected to Dental Comms — messages may not arrive. Trying to reconnect…</div>
+<div id="offline" hidden>⚠️ Lost contact with Dental Comms, so messages may not arrive. Reconnecting…</div>
 
 <script src="app.js"></script>
 </body>

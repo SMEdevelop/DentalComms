@@ -343,10 +343,65 @@
     renderHeader(); renderGrid(); renderSendBar(); renderRecent(); renderAlert();
   }
 
-  // ---------------- choose-station screen ----------------
+  // ---------------- first visit: room, sound, startup ----------------
+  // A new computer is walked through three things, one tap each: which room
+  // it is in, whether it can hear the chime, and - on a Windows desktop -
+  // whether Dental Comms should open by itself every morning. The tap that
+  // picks the room is also what lets the browser play sound, so the sound
+  // check can happen there and then instead of at the first missed alert.
+  //
+  // A computer that already had a room before this existed has done all of
+  // this in practice, so it is never sent through it after an update.
+  const ONBOARDED_KEY = 'dentalcomms-onboarded';
+  function isOnboarded() {
+    try { return !!localStorage.getItem(ONBOARDED_KEY); } catch { return true; }
+  }
+  function setOnboarded() {
+    try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch { /* private window */ }
+  }
+  if (myStation && !isOnboarded()) setOnboarded();
+
+  function setSheet(step, title, lede, hint) {
+    $('setup-step').textContent = step || '';
+    $('setup-step').hidden = !step;
+    $('setup-title').textContent = title;
+    $('setup-lede').textContent = lede || '';
+    $('setup-lede').hidden = !lede;
+    $('setup-hint').textContent = hint || '';
+    $('setup-hint').hidden = !hint;
+    $('setup-grid').innerHTML = '';
+    $('setup-actions').innerHTML = '';
+  }
+
+  function setActions(list) {
+    const box = $('setup-actions');
+    box.innerHTML = '';
+    for (const a of list) {
+      if (!a) continue;
+      const b = document.createElement('button');
+      b.className = a.cls;
+      b.textContent = a.text;
+      b.onclick = a.onClick;
+      box.appendChild(b);
+    }
+  }
+
+  function closeSetup() {
+    $('setup').hidden = true;
+    $('setup-actions').innerHTML = '';
+  }
+
   function showSetup() {
+    const firstTime = !myStation && !isOnboarded();
+    const changing = !!myStation;
+    if (firstTime)
+      setSheet('Step 1 of 3', 'Welcome! 👋', 'Which room is this computer in?',
+               'Tap one. You only do this once.');
+    else
+      setSheet('', 'Which room is this computer in?', '',
+               changing ? 'Messages for that room will appear on this computer.'
+                        : 'Tap one. It will be remembered.');
     const grid = $('setup-grid');
-    grid.innerHTML = '';
     for (const s of config.stations) {
       const b = document.createElement('button');
       b.className = 'tile';
@@ -354,15 +409,107 @@
       b.onclick = () => {
         myStation = s.id;
         localStorage.setItem('dentalcomms-station', myStation);
-        $('setup').hidden = true;
         // Reopen the stream so the server knows which station this browser is
         // now sitting at, and everyone else's screens stop calling it empty.
         connect();
         renderAll();
+        if (firstTime) soundStep(0);
+        else closeSetup();
       };
       grid.appendChild(b);
     }
+    if (changing)
+      setActions([{ text: 'Cancel', cls: 'btn-big btn-gray', onClick: closeSetup }]);
     $('setup').hidden = false;
+  }
+
+  // The office's arrival sound, played straight away rather than through
+  // playChime(): this runs inside the tap that unlocked audio, and playChime
+  // would bail out while the browser is still switching sound on.
+  function testChime() {
+    try {
+      ensureAudio();
+      audioCtx.resume().then(() => {
+        const t = audioCtx.currentTime;
+        beep(660, t, .25); beep(880, t + .28, .35);
+      }).catch(() => {});
+    } catch { /* no audio on this device */ }
+  }
+
+  function soundStep(tries) {
+    // An office that switched the chime off in Settings has nothing to test.
+    if (config.notifySound === false) return startupStep();
+    setSheet('Step 2 of 3', '🔔 Did you hear a chime?',
+      tries === 0
+        ? 'That is the sound new messages make on this computer.'
+        : 'Still nothing? Check that this computer\'s volume is turned up and ' +
+          'not muted (the speaker by the clock), then play it again.', '');
+    testChime();
+    setActions([
+      { text: 'Yes, I heard it', cls: 'btn-big btn-go', onClick: startupStep },
+      { text: tries === 0 ? 'No, play it again' : 'Play it again', cls: 'btn-big btn-gray',
+        onClick: () => soundStep(tries + 1) },
+      tries > 0 ? { text: 'Skip for now', cls: 'btn-link', onClick: startupStep } : null
+    ]);
+  }
+
+  // The startup shortcut only means anything on a Windows PC with Edge or
+  // Chrome, and nothing at all inside a window that is already Dental Comms'
+  // own (an installed app, or the window the shortcut itself opens).
+  function canOpenAtStartup() {
+    const ua = navigator.userAgent;
+    if (!/Windows/.test(ua) || /Mobile|Android|iPhone|iPad/.test(ua)) return false;
+    if (!/Edg\/|Chrome\//.test(ua)) return false;
+    if (window.name === 'DentalCommsPopup') return false;
+    try { if (matchMedia('(display-mode: standalone)').matches) return false; } catch {}
+    return true;
+  }
+
+  function startupStep() {
+    if (!canOpenAtStartup()) return doneStep();
+    setSheet('Step 3 of 3', 'Open Dental Comms by itself every morning?',
+      'We\'ll download a small setup file. Open it once, and Dental Comms will ' +
+      'appear in its own window whenever this computer starts.', '');
+    setActions([
+      { text: 'Yes, set it up', cls: 'btn-big btn-go', onClick: downloadStartup },
+      { text: 'Not now', cls: 'btn-big btn-gray', onClick: doneStep }
+    ]);
+  }
+
+  async function downloadStartup() {
+    const url = /Edg\//.test(navigator.userAgent) ? '/setup/shortcut' : '/setup/shortcut?chrome';
+    // Asked for once first, so a server that has gone away says so here
+    // rather than handing over an error page with a .cmd name on it.
+    const res = await fetch(url).catch(() => null);
+    if (!res || !res.ok) {
+      setSheet('Step 3 of 3', 'That didn\'t work this time',
+        'The setup file couldn\'t be made just now. You can do this later from ' +
+        '"Set up this computer" in Settings.', '');
+      setActions([{ text: 'Carry on', cls: 'btn-big btn-go', onClick: doneStep }]);
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await res.blob());
+    a.download = 'Set up Dental Comms.cmd';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setSheet('Step 3 of 3', 'Now open the file you just downloaded',
+      'Open "Set up Dental Comms" from your downloads, at the top right of the ' +
+      'browser. If Windows asks, click Run. It takes a second.',
+      'It only makes a shortcut in your Startup folder. To undo it later, ' +
+      'delete that shortcut.');
+    setActions([
+      { text: 'Done', cls: 'btn-big btn-go', onClick: doneStep },
+      { text: 'Download it again', cls: 'btn-link', onClick: downloadStartup }
+    ]);
+  }
+
+  function doneStep() {
+    setOnboarded();
+    setSheet('', 'All set ✓', `Messages for ${stationName(myStation)} will appear here.`,
+      'To pick a different room later, tap the room name at the top right.');
+    setActions([{ text: 'Start using Dental Comms', cls: 'btn-big btn-go', onClick: closeSetup }]);
   }
   $('my-station-btn').onclick = showSetup;
 
@@ -410,7 +557,7 @@
       renderGrid(); renderSendBar();
       showToast(`Sent to ${listNames(to)} — waiting for them to see it…`, { cancel: true });
     } catch {
-      showToast('⚠️ Could not send — is the Dental Comms server running?', { error: true });
+      showToast('⚠️ Couldn\'t send. Check that the main Dental Comms computer is on, then try again.', { error: true });
     }
   }
 
@@ -507,6 +654,19 @@
   };
 
   // ---------------- connection state ----------------
+  // Says which computer to go and look at, by the name this browser used to
+  // reach it - the name staff know it by.
+  (() => {
+    const host = location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    const isNumber = /^[\d.]+$/.test(host) || host.includes(':');
+    const where = isLocal
+      ? 'Dental Comms is running on this computer (its icon by the clock)'
+      : isNumber ? 'the main Dental Comms computer is turned on'
+                 : `${host.toUpperCase()} is turned on`;
+    $('offline').textContent = '⚠️ Lost contact with Dental Comms, so messages may ' +
+      `not arrive. Reconnecting… If this stays red, check that ${where}.`;
+  })();
   // A short delay keeps a one-second blip from flashing a scary red bar; a
   // genuine outage stays on screen until the stream is really back.
   function markOffline() {

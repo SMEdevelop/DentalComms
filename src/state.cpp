@@ -99,6 +99,40 @@ void Hub::startSweeper() {
     });
 }
 
+std::string Hub::officeName() {
+    std::lock_guard<std::mutex> lk(mu_);
+    return config_.officeName;
+}
+
+void Hub::setWelcomed() {
+    std::lock_guard<std::mutex> lk(mu_);
+    if (config_.welcomed) return;
+    config_.welcomed = true;
+    saveConfig(config_);
+}
+
+int Hub::staffScreens() {
+    std::lock_guard<std::mutex> lk(clientsMu_);
+    int n = 0;
+    for (const auto& c : clients_)
+        if (c->remote) ++n;
+    return n;
+}
+
+void Hub::dropRemoteClients() {
+    std::vector<std::shared_ptr<SseClient>> gone;
+    {
+        std::lock_guard<std::mutex> lk(clientsMu_);
+        for (size_t i = clients_.size(); i-- > 0;) {
+            if (!clients_[i]->remote) continue;
+            gone.push_back(clients_[i]);
+            clients_.erase(clients_.begin() + (long)i);
+        }
+    }
+    for (const auto& c : gone) c->shutdownNow();
+    if (!gone.empty()) broadcastPresence();
+}
+
 std::vector<std::string> Hub::allowedHosts() {
     std::lock_guard<std::mutex> lk(mu_);
     return config_.allowedHosts;

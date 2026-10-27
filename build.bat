@@ -54,10 +54,12 @@ set CXXFLAGS=/nologo /std:c++17 /O2 /EHsc /MD /W3 /GS /utf-8 /DUNICODE /D_UNICOD
 rem  A windowed program since 0.9: /SUBSYSTEM:WINDOWS and wWinMain, so the
 rem  office gets an ordinary window and a notification-area icon rather than a
 rem  console nobody dares close. No console is allocated at all.
-set LDFLAGS=/link /INCREMENTAL:NO /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS
+rem  /MANIFEST:NO: the manifest is embedded by app.rc, and a second one from
+rem  the linker would collide with it.
+set LDFLAGS=/link /INCREMENTAL:NO /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS /MANIFEST:NO
 set LIBS=ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib user32.lib gdi32.lib shell32.lib comctl32.lib
 
-set SOURCES=src\main.cpp src\gui.cpp src\shortcut.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
+set SOURCES=src\main.cpp src\gui.cpp src\checks.cpp src\firewall.cpp src\shortcut.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
 
 echo  Compiling resources...
 rc /nologo /fo build\app.res src\app.rc

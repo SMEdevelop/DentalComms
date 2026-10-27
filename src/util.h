@@ -17,6 +17,8 @@ std::string replaceAll(std::string s, const std::string& from, const std::string
 // Paths are all resolved relative to the folder holding the .exe so the app
 // behaves the same however it was launched (shortcut, Explorer, console).
 std::string exeDir();
+std::string exePath();                        // full path of this .exe
+std::string expandEnv(const std::string& s);  // "%LOCALAPPDATA%\x" -> "C:\Users\...\x"
 std::string appPath(const std::string& relative);
 std::string joinPath(const std::string& a, const std::string& b);
 std::string baseName(const std::string& path);

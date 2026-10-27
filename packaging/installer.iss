@@ -11,6 +11,12 @@
 ; offered: the installed copy and an unzipped folder behave identically. It
 ; also means no UAC prompt to install, and "Start with Windows" is the same
 ; per-user Run entry the app's own tray menu writes.
+;
+; One page and one click: everything this used to ask (which folder, start
+; with Windows, a desktop icon, the licence) has a right answer for a server
+; computer, so it is no longer a question. The licence is installed beside
+; the program, and the "not for emergencies" note is on the app's own
+; Welcome screen, where it is read.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -47,8 +53,8 @@ VersionInfoVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-DisableDirPage=auto
-LicenseFile=LICENSE
+DisableDirPage=yes
+DisableReadyMemo=yes
 
 ; "lowest" keeps the whole install inside the user's own profile: no admin
 ; prompt, and nothing lands anywhere the app cannot later write to.
@@ -86,9 +92,9 @@ CloseApplications=no
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Tasks]
-Name: "startup"; Description: "Start Dental Comms when I sign in to Windows (recommended for the server computer)"; GroupDescription: "Startup:"
-Name: "desktopicon"; Description: "Create a shortcut on the desktop"; GroupDescription: "Shortcuts:"; Flags: unchecked
+[Messages]
+ReadyLabel1=Dental Comms is ready to install on this computer.
+ReadyLabel2b=Click Install. It takes a few seconds and needs no administrator password.
 
 ; public\ is replaced as a whole, so a file a newer version no longer ships
 ; cannot linger and be served. data\ and port.txt are the office's own and
@@ -113,22 +119,22 @@ Source: "{#CrtDir}\vcruntime140_1.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
-[Registry]
-; Written in exactly the form the tray menu's "Start with Windows" writes it
-; (same value name, same quoted path, same --tray), so the tick in that menu
-; agrees with what the installer did and can turn it back off.
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
-    ValueType: string; ValueName: "DentalComms"; \
-    ValueData: """{app}\{#AppExeName}"" --tray"; \
-    Flags: uninsdeletevalue; Tasks: startup
+; "Start with Windows" is written by CurStepChanged below rather than by a
+; [Registry] entry, so that an update leaves alone an office that switched it
+; off in the tray menu.
 
 [Run]
-; Opens the window rather than going to the tray, so whoever installed it
-; sees the addresses to bookmark on the staff computers straight away.
+; A fresh install opens the window rather than going to the tray, so whoever
+; installed it is walked through the Welcome and sees the address to give
+; the other computers straight away.
 Filename: "{app}\{#AppExeName}"; Description: "Start {#AppName} now"; \
-    Flags: nowait postinstall skipifsilent
+    Flags: nowait postinstall skipifsilent; Check: not WasRunning
+; An update to a server that was running puts it straight back, quietly, in
+; silent installs too - winget upgrades are silent, and an office's messaging
+; must not stay off just because nobody was there to tick a box.
+Filename: "{app}\{#AppExeName}"; Parameters: "--tray"; Flags: nowait; \
+    Check: WasRunning
 
 [Code]
 const
@@ -144,6 +150,15 @@ var
   // An old copy was set to start at sign-in, by a Run entry or a shortcut
   // in the Startup folder.
   HadStartup: Boolean;
+  // Dental Comms was already installed in {app} before this ran.
+  WasInstalled: Boolean;
+  // Setup turned a running server off, and so starts it again at the end.
+  StoppedServer: Boolean;
+
+function WasRunning(): Boolean;
+begin
+  Result := StoppedServer;
+end;
 
 function CRLF(): String;
 begin
@@ -223,25 +238,80 @@ begin
   end;
 end;
 
-// Updating or removing the server while it runs would fail on its locked
-// files, or - for a copy in another folder - leave the new one unable to
-// get the port. So it has to be turned off first, by a person: it is the
-// office's messaging, and stopping it is a decision for whoever is here.
-// A silent install cannot ask, so it stops (exit code 1) instead.
-function StoppedFirst(const Doing: String): Boolean;
+const
+  WM_COMMAND = $0111;
+  // The tray menu's "Turn Dental Comms off". Every 0.9 version, Dental Flow
+  // included, understands it; gui.cpp promises never to renumber it.
+  IDM_TRAY_EXIT = 204;
+
+// Asks every Dental Comms (or Dental Flow) server window to turn off, the way
+// its own tray menu would, so it closes cleanly and says goodbye to the
+// screens connected to it. Console-era copies have no window; for those the
+// person is asked to close them, as before.
+procedure AskServersToStop();
 var
-  Running: String;
+  Wnd: HWND;
+  I: Integer;
+begin
+  for I := 1 to 10 do
+  begin
+    Wnd := FindWindowByClassName('DentalCommsServer');
+    if Wnd = 0 then
+      Wnd := FindWindowByClassName('DentalFlowServer');
+    if Wnd = 0 then
+      Exit;
+    PostMessage(Wnd, WM_COMMAND, IDM_TRAY_EXIT, 0);
+    Sleep(400);
+  end;
+end;
+
+// Updating or removing the server while it runs would fail on its locked
+// files, or - for a copy in another folder - leave the new one unable to get
+// the port. Setup turns it off itself after saying so, and an update starts
+// it again at the end (see [Run]). Only a copy that will not go - one from
+// the console days - still needs a person, and a silent run cannot ask, so
+// that case alone stops with exit code 1.
+function StoppedFirst(const Doing: String; Restarts: Boolean): Boolean;
+var
+  Running, Msg: String;
+  I: Integer;
 begin
   Result := True;
   Running := RunningCopies();
+  if Running = '' then
+    Exit;
+
+  Msg := 'Dental Comms is running on this computer.' + CRLF() + CRLF();
+  if Restarts then
+    Msg := Msg + 'Setup will turn it off for about a minute while it ' + Doing +
+           ', then start it again. Messages pause until then.'
+  else
+    Msg := Msg + 'Setup will turn it off before ' + Doing +
+           '. Messages stop on every computer in the office.';
+  if SuppressibleMsgBox(Msg, mbConfirmation, MB_OKCANCEL, IDOK) <> IDOK then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  AskServersToStop();
+  for I := 1 to 40 do
+  begin
+    Running := RunningCopies();
+    if Running = '' then
+      Break;
+    Sleep(250);
+  end;
+  StoppedServer := Restarts;
+
   while Running <> '' do
   begin
-    if SuppressibleMsgBox('Dental Comms is running on this computer:' + CRLF() + CRLF() +
+    if SuppressibleMsgBox('Dental Comms is still running on this computer:' + CRLF() + CRLF() +
          Running + CRLF() +
-         'Turn it off before ' + Doing + ': right-click its icon by the clock ' +
-         '(under the ^ arrow) and choose "Turn Dental Comms off" ' +
-         '(or "Turn Dental Flow off").' + CRLF() + CRLF() +
-         'Messages stop until it is started again. Click Retry once it is off.',
+         'Turn it off: right-click its icon by the clock (under the ^ arrow) and ' +
+         'choose "Turn Dental Comms off" (or "Turn Dental Flow off"). An older ' +
+         'copy may be a black window instead; close that.' + CRLF() + CRLF() +
+         'Click Retry once it is off.',
          mbError, MB_RETRYCANCEL, IDCANCEL) <> IDRETRY then
     begin
       Result := False;
@@ -253,12 +323,12 @@ end;
 
 function InitializeSetup(): Boolean;
 begin
-  Result := StoppedFirst('installing');
+  Result := StoppedFirst('it updates', True);
 end;
 
 function InitializeUninstall(): Boolean;
 begin
-  Result := StoppedFirst('uninstalling');
+  Result := StoppedFirst('removing it', False);
 end;
 
 // The folder of the exe a Run entry starts, when that exe is ours and is
@@ -345,6 +415,7 @@ begin
     NoteOldDir(OldDirFromRunValue('DentalFlow'));
     HadStartup := (OldDirFromRunValue('DentalComms') <> '') or
                   (OldDirFromRunValue('DentalFlow') <> '');
+    WasInstalled := FileExists(ExpandConstant('{app}\{#AppExeName}'));
     StartupShortcuts(False);
     Exit;
   end;
@@ -368,9 +439,12 @@ begin
     end;
   end;
 
-  // An old copy set to start at sign-in hands that over to this one.
+  // A new install starts with Windows - a server that does not come back
+  // after a restart takes the office's messaging with it. An old copy set to
+  // start at sign-in hands that over to this one. An update of this install
+  // leaves the setting as the office left it.
   StartCmd := '"' + ExpandConstant('{app}\{#AppExeName}') + '" --tray';
-  if HadStartup or WizardIsTaskSelected('startup') then
+  if HadStartup or not WasInstalled then
   begin
     RegWriteStringValue(HKCU, RunKey, 'DentalComms', StartCmd);
     StartupShortcuts(True);
@@ -381,6 +455,9 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  if (CurPageID = wpFinished) and StoppedServer then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption +
+      CRLF() + CRLF() + 'Dental Comms has been started again. Its icon is by the clock.';
   if (CurPageID = wpFinished) and (CopiedFrom <> '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption +
       CRLF() + CRLF() + 'Your rooms and buttons were copied from:' + CRLF() +
@@ -407,7 +484,7 @@ begin
   if CurStep <> usPostUninstall then
     Exit;
 
-  if not FileExists(AppDir + '\data\config.json') and
+  if not DirExists(AppDir + '\data') and
      not FileExists(AppDir + '\port.txt') then
   begin
     RemoveDir(AppDir);
@@ -416,7 +493,7 @@ begin
 
   Gap := CRLF() + CRLF();
   Msg := 'Also delete this office''s rooms, buttons and settings?' + Gap +
-         'This removes data\config.json (and port.txt, if there is one) from:' +
+         'This removes the data folder (and port.txt, if there is one) from:' +
          Gap + AppDir + Gap +
          'Choose No to keep them - reinstalling Dental Comms will pick them ' +
          'up again.';

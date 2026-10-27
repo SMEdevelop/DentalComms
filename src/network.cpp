@@ -3,6 +3,8 @@
 #include <objbase.h>
 #include <netlistmgr.h>
 
+#include "util.h"
+
 namespace on {
 namespace {
 
@@ -38,40 +40,96 @@ const char* profileName(NetProfile p) {
     return "Unknown";
 }
 
-NetProfile currentProfile() {
-    // COM may already be running in another mode on this thread; only undo
-    // what this call actually set up.
-    const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    const bool weInitialised = SUCCEEDED(init);
+namespace {
 
-    NetProfile result = NetProfile::Unknown;
+// COM may already be running in another mode on this thread; only undo what
+// this object actually set up.
+struct ComScope {
+    bool mine;
+    ComScope() : mine(SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {}
+    ~ComScope() { if (mine) CoUninitialize(); }
+};
+
+// Calls `fn` for every connected network. Stops early when fn returns false.
+template <class Fn>
+void forEachConnected(Fn fn) {
     INetworkListManager* nlm = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_NetworkListManager, nullptr, CLSCTX_ALL,
-                                   IID_INetworkListManager, (void**)&nlm)) &&
-        nlm) {
-        IEnumNetworks* nets = nullptr;
-        if (SUCCEEDED(nlm->GetNetworks(NLM_ENUM_NETWORK_CONNECTED, &nets)) &&
-            nets) {
-            bool sawAny = false;
-            while (true) {
-                INetwork* net = nullptr;
-                ULONG got = 0;
-                if (FAILED(nets->Next(1, &net, &got)) || got == 0 || !net) break;
-                NLM_NETWORK_CATEGORY cat = NLM_NETWORK_CATEGORY_PUBLIC;
-                if (SUCCEEDED(net->GetCategory(&cat))) {
-                    const NetProfile p = fromCategory(cat);
-                    if (!sawAny || trustRank(p) < trustRank(result)) result = p;
-                    sawAny = true;
-                }
-                net->Release();
-            }
-            nets->Release();
+    if (FAILED(CoCreateInstance(CLSID_NetworkListManager, nullptr, CLSCTX_ALL,
+                                IID_INetworkListManager, (void**)&nlm)) ||
+        !nlm)
+        return;
+    IEnumNetworks* nets = nullptr;
+    if (SUCCEEDED(nlm->GetNetworks(NLM_ENUM_NETWORK_CONNECTED, &nets)) && nets) {
+        while (true) {
+            INetwork* net = nullptr;
+            ULONG got = 0;
+            if (FAILED(nets->Next(1, &net, &got)) || got == 0 || !net) break;
+            const bool more = fn(net);
+            net->Release();
+            if (!more) break;
         }
-        nlm->Release();
+        nets->Release();
     }
+    nlm->Release();
+}
 
-    if (weInitialised) CoUninitialize();
+}  // namespace
+
+std::vector<ConnectedNetwork> connectedNetworks() {
+    ComScope com;
+    std::vector<ConnectedNetwork> out;
+    forEachConnected([&](INetwork* net) {
+        ConnectedNetwork n;
+        NLM_NETWORK_CATEGORY cat = NLM_NETWORK_CATEGORY_PUBLIC;
+        n.profile = SUCCEEDED(net->GetCategory(&cat)) ? fromCategory(cat)
+                                                      : NetProfile::Public;
+        BSTR name = nullptr;
+        if (SUCCEEDED(net->GetName(&name)) && name) {
+            n.name = narrow(name);
+            SysFreeString(name);
+        }
+        out.push_back(std::move(n));
+        return true;
+    });
+    return out;
+}
+
+NetProfile leastTrusted(const std::vector<ConnectedNetwork>& nets) {
+    NetProfile result = NetProfile::Unknown;
+    bool sawAny = false;
+    for (const auto& n : nets) {
+        if (!sawAny || trustRank(n.profile) < trustRank(result)) result = n.profile;
+        sawAny = true;
+    }
     return result;
+}
+
+std::string networkNamesAt(const std::vector<ConnectedNetwork>& nets,
+                           NetProfile p) {
+    std::vector<std::string> names;
+    for (const auto& n : nets)
+        if (n.profile == p && !n.name.empty()) names.push_back(n.name);
+    std::string out;
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (i) out += (i + 1 == names.size()) ? " and " : ", ";
+        out += names[i];
+    }
+    return out;
+}
+
+NetProfile currentProfile() { return leastTrusted(connectedNetworks()); }
+
+int trustConnectedNetworks() {
+    ComScope com;
+    bool failed = false;
+    forEachConnected([&](INetwork* net) {
+        NLM_NETWORK_CATEGORY cat;
+        if (SUCCEEDED(net->GetCategory(&cat)) && cat == NLM_NETWORK_CATEGORY_PUBLIC &&
+            FAILED(net->SetCategory(NLM_NETWORK_CATEGORY_PRIVATE)))
+            failed = true;
+        return true;
+    });
+    return failed ? 1 : 0;
 }
 
 }  // namespace on

@@ -77,6 +77,20 @@ std::string exeDir() {
     return cached;
 }
 
+std::string exePath() {
+    wchar_t buf[MAX_PATH * 2];
+    DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH * 2);
+    return narrow(std::wstring(buf, n));
+}
+
+std::string expandEnv(const std::string& s) {
+    const std::wstring w = widen(s);
+    wchar_t buf[MAX_PATH * 2];
+    const DWORD n = ExpandEnvironmentStringsW(w.c_str(), buf, MAX_PATH * 2);
+    if (n == 0 || n > MAX_PATH * 2) return s;
+    return narrow(buf);
+}
+
 std::string joinPath(const std::string& a, const std::string& b) {
     if (a.empty()) return b;
     if (b.empty()) return a;

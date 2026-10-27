@@ -78,6 +78,24 @@ public:
     // is a room where an alert will not be seen.
     js::Value listeningJson();
 
+    // A browser on another computer just reached us. That, and nothing the
+    // firewall settings say, is proof that staff computers can connect.
+    void noteStaffSeen() { lastStaffSeen_.store(nowMillis()); }
+    long long lastStaffSeen() const { return lastStaffSeen_.load(); }
+
+    // Message screens open on other computers right now.
+    int staffScreens();
+
+    // Windows moved to a network Dental Comms should not serve: shut every
+    // stream that came from another computer, so "this computer only" holds
+    // for connections already open as well as new ones.
+    void dropRemoteClients();
+
+    std::string officeName();
+
+    // The first-run welcome on the server computer is done. Saved at once.
+    void setWelcomed();
+
     // Does one pass of the unanswered-alert check immediately, instead of
     // waiting for the next tick. Exposed for the self-test.
     void sweepNow() { sweepUnanswered(); }
@@ -106,6 +124,7 @@ private:
     std::mutex sweepMu_;
     std::condition_variable sweepCv_;
     std::atomic<bool> stopping_{false};
+    std::atomic<long long> lastStaffSeen_{0};
 };
 
 }  // namespace on

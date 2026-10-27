@@ -1,6 +1,7 @@
 #include "routes.h"
 
 #include <memory>
+#include <mutex>
 
 #include "shortcut.h"
 #include "util.h"
@@ -43,7 +44,7 @@ bool isPathSafe(const std::string& rel) {
     return true;
 }
 
-void handleSse(SOCKET raw, Hub& hub, const std::string& station) {
+void handleSse(SOCKET raw, Hub& hub, const std::string& station, bool remote) {
     const std::string head =
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/event-stream\r\n"
@@ -55,6 +56,7 @@ void handleSse(SOCKET raw, Hub& hub, const std::string& station) {
     auto client = std::make_shared<SseClient>();
     client->sock = raw;
     client->station = station;
+    client->remote = remote;
     if (!client->sendFrame(head)) {
         client->shutdownNow();
         return;
@@ -91,7 +93,37 @@ void handleSse(SOCKET raw, Hub& hub, const std::string& station) {
     client->shutdownNow();
 }
 
+std::mutex g_infoMu;
+js::Value g_info = js::Value::object();
+
+js::Value serverInfo() {
+    std::lock_guard<std::mutex> lk(g_infoMu);
+    return g_info;
+}
+
+const char* const kWrongAddressPage =
+    "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    "<title>Not quite the right address - Dental Comms</title><style>"
+    "body{margin:0;padding:48px 16px;background:#f4f6f8;color:#1d2733;"
+    "font:17px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}"
+    ".card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #dde4ea;"
+    "border-radius:16px;padding:28px}h1{font-size:1.4rem;margin:0 0 10px}"
+    "p{margin:0 0 12px}.muted{color:#66788c;font-size:.95rem}</style></head><body>"
+    "<div class=\"card\"><h1>This address isn't quite right</h1>"
+    "<p>Dental Comms is here, but it doesn't recognise the name you used to "
+    "reach it.</p><p>Use the address on your Dental Comms setup card, or the one "
+    "shown in the Dental Comms window on the main computer.</p>"
+    "<p class=\"muted\">If your office reaches Dental Comms by a different "
+    "name on purpose, add that name to \"allowedHosts\" in "
+    "data\\config.json on the main computer.</p></div></body></html>";
+
 }  // namespace
+
+void publishServerInfo(const js::Value& info) {
+    std::lock_guard<std::mutex> lk(g_infoMu);
+    g_info = info;
+}
 
 std::string hostOnly(const std::string& hostHeader) {
     const std::string h = trim(hostHeader);
@@ -189,15 +221,21 @@ void serveConnection(SOCKET raw, Hub& hub) {
     // name that means this computer, and to not announcing themselves as
     // coming from somewhere else.
     const std::string host = req.header("Host");
-    if (!hostIsOurs(host, localAddressOf(raw), computerName(),
-                    hub.allowedHosts())) {
-        conn.sendText(403,
-                      "Dental Comms does not answer to that address.\r\n\r\n"
-                      "Use the address shown in the Dental Comms window. If your "
-                      "office reaches it by\r\nsome other name, add that name "
-                      "to \"allowedHosts\" in data\\config.json.\r\n");
+    const std::string arrivedOn = localAddressOf(raw);
+    if (!hostIsOurs(host, arrivedOn, computerName(), hub.allowedHosts())) {
+        // A person usually sees this, in a browser, after typing an address
+        // slightly wrong - so it is a page, not a line of text. It names no
+        // address: a page reached by a name this server does not recognise is
+        // exactly the case where it should not hand out its real one.
+        conn.send(403, "text/html; charset=utf-8", kWrongAddressPage);
         return;
     }
+    // Someone on another computer got this far, which proves more about the
+    // network and the firewall than any setting can. The server's own browser
+    // can arrive on the computer's network address too, so that is ruled out.
+    const std::string peer = peerAddressOf(raw);
+    const bool remote = !peer.empty() && !isLoopbackIPv4(peer) && peer != arrivedOn;
+    if (remote) hub.noteStaffSeen();
     if (!originIsOurs(req.header("Origin"), host)) {
         conn.sendText(403, "Dental Comms does not take requests from other web "
                            "pages.\r\n");
@@ -209,7 +247,15 @@ void serveConnection(SOCKET raw, Hub& hub) {
     }
 
     if (p == "/api/events") {
-        handleSse(conn.release(), hub, queryParam(req.query, "station"));
+        handleSse(conn.release(), hub, queryParam(req.query, "station"), remote);
+        return;
+    }
+
+    // What the printable setup card needs: the addresses staff should type.
+    // The card is opened on the server computer itself (as localhost), where
+    // the browser cannot know the name the rest of the office uses.
+    if (p == "/api/server" && iequals(req.method, "GET")) {
+        conn.sendJson(200, serverInfo());
         return;
     }
 
@@ -329,6 +375,7 @@ void serveConnection(SOCKET raw, Hub& hub) {
     if (p == "/") wanted = "/index.html";
     else if (p == "/admin") wanted = "/admin.html";
     else if (p == "/setup") wanted = "/setup.html";
+    else if (p == "/card") wanted = "/card.html";
 
     std::string full;
     if (!resolveStaticPath(wanted, publicDir, full)) {

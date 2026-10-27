@@ -166,6 +166,8 @@ js::Value Config::toJson() const {
     out["notifyFlash"] = notifyFlash;
     out["notifyTaskbar"] = notifyTaskbar;
     out["startMinimized"] = startMinimized;
+    out["welcomed"] = welcomed;
+    if (port > 0) out["port"] = port;
     js::Value hosts = js::Value::array();
     for (const auto& h : allowedHosts) hosts.push(h);
     out["allowedHosts"] = hosts;
@@ -206,6 +208,8 @@ bool Config::applyFromJson(const js::Value& body, std::string& error) {
     next.escalateAfterSeconds = escalateAfterSeconds;
     next.expireAfterSeconds = expireAfterSeconds;
     next.allowedHosts = allowedHosts;
+    next.port = port;
+    next.welcomed = welcomed;
     next.officeName = clampUtf8(jsStringOr(body.find("officeName"), "Our Office"), 60);
 
     // The settings page does send these, but a key that is absent must mean
@@ -267,23 +271,14 @@ const Preset* Config::findPreset(const std::string& id) const {
     return nullptr;
 }
 
-Config loadConfig() {
-    const std::string path = joinPath(joinPath(resourceRoot(), "data"), "config.json");
-    std::string text;
-    if (!readFile(path, text)) {
-        Config c = Config::defaults();
-        saveConfig(c);
-        return c;
-    }
+std::string dataDir() { return joinPath(resourceRoot(), "data"); }
+
+bool parseConfig(const std::string& text, Config& c) {
     std::string err;
     js::Value v = js::Value::parse(text, &err);
-    if (!err.empty() || !v.isObj()) {
-        // Damaged file: fall back rather than start with no settings, but
-        // leave the broken file alone so it can be inspected.
-        return Config::defaults();
-    }
+    if (!err.empty() || !v.isObj()) return false;
 
-    Config c;
+    c = Config();
     c.officeName = v.str("officeName", "Our Office");
     if (const js::Value* nets = v.find("networks")) c.networks.applyFromJson(*nets);
     c.escalateAfterSeconds = clampSeconds(v.integer("escalateAfterSeconds", 120));
@@ -294,6 +289,10 @@ Config loadConfig() {
     c.notifyFlash = v.boolean("notifyFlash", true);
     c.notifyTaskbar = v.boolean("notifyTaskbar", true);
     c.startMinimized = v.boolean("startMinimized", false);
+    // A file without it was written by an office already up and running.
+    c.welcomed = v.boolean("welcomed", true);
+    const int port = v.integer("port", 0);
+    c.port = (port > 0 && port <= 65535) ? port : 0;
     if (const js::Value* hosts = v.find("allowedHosts")) {
         for (const auto& h : hosts->arr) {
             const std::string name = lower(trim(h.asStr()));
@@ -323,13 +322,90 @@ Config loadConfig() {
     // settings page can't create that, so it means the file was hand-edited.
     if (c.stations.empty()) c.stations = Config::defaults().stations;
     if (c.presets.empty()) c.presets = Config::defaults().presets;
+    return true;
+}
+
+namespace {
+
+// "2026-10-26-143005", for naming a damaged file that is being set aside.
+std::string fileStamp() {
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    char buf[32];
+    _snprintf_s(buf, sizeof(buf), _TRUNCATE, "%04d-%02d-%02d-%02d%02d%02d",
+                t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+    return buf;
+}
+
+// Can anything be saved here at all? Asked by writing, because nothing else
+// gives a straight answer: folder permissions, a read-only USB stick and
+// Controlled Folder Access all only show up when a write fails.
+bool canWriteIn(const std::string& dir) {
+    ensureDir(dir);
+    const std::string probe = joinPath(dir, ".write-test");
+    if (!writeFileAtomic(probe, "ok")) return false;
+    DeleteFileW(widen(probe).c_str());
+    return true;
+}
+
+}  // namespace
+
+Config loadConfigFrom(const std::string& dir, ConfigReport* report) {
+    ConfigReport local;
+    ConfigReport& r = report ? *report : local;
+    r = ConfigReport();
+
+    const std::string path = joinPath(dir, "config.json");
+    const std::string backup = joinPath(dir, "config.backup.json");
+
+    std::string text;
+    if (!readFile(path, text)) {
+        Config c = Config::defaults();
+        r.origin = ConfigOrigin::Created;
+        r.writable = saveConfigTo(dir, c);
+        return c;
+    }
+
+    Config c;
+    if (parseConfig(text, c)) {
+        r.origin = ConfigOrigin::Loaded;
+        r.writable = canWriteIn(dir);
+        return c;
+    }
+
+    // Damaged. Set it aside under a dated name rather than leaving it where
+    // the next save would overwrite it - whatever was in it stays findable.
+    r.damagedCopy = "config.damaged-" + fileStamp() + ".json";
+    MoveFileExW(widen(path).c_str(), widen(joinPath(dir, r.damagedCopy)).c_str(),
+                MOVEFILE_REPLACE_EXISTING);
+
+    std::string saved;
+    if (readFile(backup, saved) && parseConfig(saved, c)) {
+        r.origin = ConfigOrigin::RestoredFromBackup;
+    } else {
+        c = Config::defaults();
+        r.origin = ConfigOrigin::ResetDamaged;
+    }
+    // Not a new office either way: it was set up once, and only the file
+    // broke. The window's checklist says what happened instead of a Welcome.
+    c.welcomed = true;
+    r.writable = saveConfigTo(dir, c);
     return c;
 }
 
-bool saveConfig(const Config& cfg) {
-    const std::string dir = joinPath(resourceRoot(), "data");
+bool saveConfigTo(const std::string& dir, const Config& cfg) {
     ensureDir(dir);
-    return writeFileAtomic(joinPath(dir, "config.json"), cfg.toJson().dump(2));
+    const std::string data = cfg.toJson().dump(2);
+    if (!writeFileAtomic(joinPath(dir, "config.json"), data)) return false;
+    // A copy of the last file Dental Comms itself wrote, so a hand edit that
+    // breaks config.json - or a power cut mid-write on an old disk - is undone
+    // by the next start rather than costing the office its rooms.
+    writeFileAtomic(joinPath(dir, "config.backup.json"), data);
+    return true;
 }
+
+Config loadConfig(ConfigReport* report) { return loadConfigFrom(dataDir(), report); }
+
+bool saveConfig(const Config& cfg) { return saveConfigTo(dataDir(), cfg); }
 
 }  // namespace on

@@ -6,6 +6,7 @@
 // answering strangers.
 #pragma once
 #include <string>
+#include <vector>
 
 namespace on {
 
@@ -22,5 +23,26 @@ enum class NetProfile {
 NetProfile currentProfile();
 
 const char* profileName(NetProfile p);
+
+// One network Windows says this computer is connected to: its name as shown
+// in Settings ("OfficeWiFi", "Network 2") and how far Windows trusts it.
+struct ConnectedNetwork {
+    std::string name;
+    NetProfile profile = NetProfile::Unknown;
+};
+std::vector<ConnectedNetwork> connectedNetworks();
+
+// The least trusted of a set of networks - the rule currentProfile() applies.
+// Unknown when the list is empty.
+NetProfile leastTrusted(const std::vector<ConnectedNetwork>& nets);
+
+// The names of the networks that hold the profile at `p`, joined for a
+// sentence: "OfficeWiFi" or "OfficeWiFi and Network 2".
+std::string networkNamesAt(const std::vector<ConnectedNetwork>& nets, NetProfile p);
+
+// Marks every connected Public network Private. Needs administrator rights,
+// so it runs in the copy of Dental Comms started with --trust-network through
+// a UAC prompt. Returns the process exit code: 0 when it worked.
+int trustConnectedNetworks();
 
 }  // namespace on

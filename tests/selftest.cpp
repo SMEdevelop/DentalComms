@@ -8,7 +8,10 @@
 #include <string>
 #include <thread>
 
+#include "checks.h"
 #include "config.h"
+#include "firewall.h"
+#include "network.h"
 #include "json.h"
 #include "routes.h"
 #include "shortcut.h"
@@ -935,6 +938,335 @@ int main() {
         check(allRefused,
               "an address that would run commands in the batch file is "
               "refused, not escaped");
+    }
+
+    // ---------------------------------------------------------------------
+    section("Settings that repair themselves");
+    {
+        // A scratch folder of its own, so the office's real settings are
+        // never touched.
+        wchar_t tmp[MAX_PATH];
+        GetTempPathW(MAX_PATH, tmp);
+        const std::string dir =
+            joinPath(narrow(tmp), "dc-selftest-" + std::to_string(GetCurrentProcessId()));
+        const std::string cfgPath = joinPath(dir, "config.json");
+        const std::string bakPath = joinPath(dir, "config.backup.json");
+
+        on::ConfigReport r;
+        on::Config fresh = on::loadConfigFrom(dir, &r);
+        check(r.origin == on::ConfigOrigin::Created, "a missing file is a new office");
+        check(r.writable, "and the folder can be written to");
+        check(fileExists(cfgPath), "the defaults are written out");
+        check(fileExists(bakPath), "with a backup beside them");
+        check(!fresh.welcomed, "a new office has not been welcomed yet");
+        check(fresh.port == 0, "and has not picked a port yet");
+
+        fresh.officeName = "Backed Up";
+        fresh.port = 3273;
+        fresh.welcomed = true;
+        check(on::saveConfigTo(dir, fresh), "a save works");
+        on::Config again = on::loadConfigFrom(dir, &r);
+        check(r.origin == on::ConfigOrigin::Loaded, "the next start just loads it");
+        check(again.port == 3273, "the chosen port survives a reload");
+        check(again.welcomed, "and so does finishing the welcome");
+
+        // A file from before "welcomed" existed belongs to an office that is
+        // already up and running: no Welcome screen after an update.
+        writeFileAtomic(cfgPath, "{\"officeName\":\"Old Office\",\"stations\":[],\"presets\":[]}");
+        on::Config old = on::loadConfigFrom(dir, &r);
+        check(old.welcomed, "an older settings file counts as already welcomed");
+        check(old.port == 0, "and has no port of its own until one is picked");
+
+        writeFileAtomic(cfgPath, "{\"port\": 99999}");
+        check(on::loadConfigFrom(dir, &r).port == 0, "a port out of range is ignored");
+
+        // Damage it, with a good backup in place - one saved before the
+        // welcome was finished, so the repair cannot lean on it for that.
+        fresh.welcomed = false;
+        on::saveConfigTo(dir, fresh);
+        writeFileAtomic(cfgPath, "{ this is not json");
+        on::Config restored = on::loadConfigFrom(dir, &r);
+        check(r.origin == on::ConfigOrigin::RestoredFromBackup,
+              "a damaged file is replaced by the last good copy");
+        check(restored.officeName == "Backed Up", "with the office's own rooms in it");
+        check(restored.welcomed, "and no Welcome screen for an office already set up");
+        check(!r.damagedCopy.empty() && fileExists(joinPath(dir, r.damagedCopy)),
+              "and the damaged file is kept under its own name, not overwritten");
+        std::string now;
+        on::Config reparsed;
+        check(readFile(cfgPath, now) && on::parseConfig(now, reparsed),
+              "config.json is a good file again");
+
+        // Damage it with no backup to fall back on.
+        DeleteFileW(widen(bakPath).c_str());
+        writeFileAtomic(cfgPath, "[1, 2, 3]");
+        on::Config reset = on::loadConfigFrom(dir, &r);
+        check(r.origin == on::ConfigOrigin::ResetDamaged,
+              "with no backup either, the defaults are used");
+        check(reset.stations.size() == 6, "so the screens still have rooms");
+        check(reset.welcomed,
+              "and it is not mistaken for a new office - only the file broke");
+
+        // The settings page knows nothing about these two.
+        on::Config server = on::Config::defaults();
+        server.port = 4000;
+        server.welcomed = true;
+        std::string err;
+        check(server.applyFromJson(makeConfigBody(2, 2), err), "a settings edit saves");
+        check(server.port == 4000 && server.welcomed,
+              "and leaves the port and the welcome alone");
+
+        for (const auto& f : listFiles(dir, ".json"))
+            DeleteFileW(widen(joinPath(dir, f)).c_str());
+        RemoveDirectoryW(widen(dir).c_str());
+    }
+
+    // ---------------------------------------------------------------------
+    section("Firewall judgement");
+    {
+        const std::string exe = expandEnv("%WINDIR%") + "\\DentalComms.exe";
+        auto rule = [](const std::string& app, bool allow, long profiles,
+                       bool enabled = true, bool inbound = true) {
+            on::FirewallRuleInfo r;
+            r.app = app;
+            r.allow = allow;
+            r.profiles = profiles;
+            r.enabled = enabled;
+            r.inbound = inbound;
+            return r;
+        };
+        const long priv = 2, pub = 4, all = 0x7FFFFFFF;
+        using FS = on::FirewallState;
+
+        check(on::classifyFirewall(false, false, false, priv, {}, exe) == FS::Off,
+              "Windows Firewall off reads as off");
+        check(on::classifyFirewall(true, false, false, priv, {}, exe) == FS::WillAsk,
+              "no rule yet: Windows will ask");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule(exe, true, priv)}, exe) == FS::Allowed,
+              "an allow rule for this network lets it in");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule(exe, true, pub)}, exe) == FS::WillAsk,
+              "one for a different kind of network does not count");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule(exe, true, priv), rule(exe, false, all)},
+                                   exe) == FS::Blocked,
+              "a block rule beats an allow rule, as it does in Windows");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule(exe, true, priv), rule(exe, false, all, false)},
+                                   exe) == FS::Allowed,
+              "a switched-off block rule is ignored");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule(exe, false, all, true, false)}, exe) ==
+                  FS::WillAsk,
+              "an outbound rule is not about staff reaching us");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule("C:\\Other\\Thing.exe", false, all)},
+                                   exe) == FS::WillAsk,
+              "another program's rules are left out of it");
+        check(on::classifyFirewall(true, false, false, priv,
+                                   {rule("%windir%\\DENTALCOMMS.EXE", false, priv)},
+                                   exe) == FS::Blocked,
+              "paths match whatever their case or %variables%");
+        check(on::classifyFirewall(true, true, false, priv,
+                                   {rule(exe, true, priv)}, exe) == FS::Blocked,
+              "\"block all incoming connections\" blocks it too");
+        check(on::classifyFirewall(true, false, true, priv, {}, exe) == FS::Managed,
+              "on an IT-managed computer an unasked rule is IT's to decide");
+        check(on::classifyFirewall(true, false, true, priv,
+                                   {rule(exe, true, priv)}, exe) == FS::Allowed,
+              "but an allow rule that is there still counts");
+    }
+
+    // ---------------------------------------------------------------------
+    section("Network names");
+    {
+        using NP = on::NetProfile;
+        std::vector<on::ConnectedNetwork> nets = {{"OfficeWiFi", NP::Private},
+                                                  {"Phone hotspot", NP::Public}};
+        check(on::leastTrusted(nets) == NP::Public,
+              "office Ethernet plus a hotspot counts as the hotspot");
+        check(on::networkNamesAt(nets, NP::Public) == "Phone hotspot",
+              "and it is the hotspot that gets named");
+        check(on::leastTrusted({}) == NP::Unknown, "nothing connected is unknown");
+        nets.push_back({"Guest", NP::Public});
+        check(on::networkNamesAt(nets, NP::Public) == "Phone hotspot and Guest",
+              "two names read as a sentence");
+    }
+
+    // ---------------------------------------------------------------------
+    section("The server window's checklist");
+    {
+        auto healthy = [] {
+            on::Facts f;
+            f.version = "test";
+            f.computer = "RECEPTION-PC";
+            f.addresses = {"RECEPTION-PC", "192.168.1.25"};
+            f.port = 3272;
+            f.profile = on::NetProfile::Private;
+            f.mode = on::NetMode::Office;
+            f.networkNames = "OfficeWiFi";
+            f.firewall = on::FirewallState::Allowed;
+            f.runAtSignIn = true;
+            f.now = 10'000'000;
+            return f;
+        };
+        auto find = [](const std::vector<on::Check>& cs, on::Fix fix) -> const on::Check* {
+            for (const auto& c : cs)
+                if (c.fix == fix) return &c;
+            return nullptr;
+        };
+        auto has = [](const std::vector<on::Check>& cs, const std::string& text) {
+            for (const auto& c : cs)
+                if (c.text.find(text) != std::string::npos) return true;
+            return false;
+        };
+
+        on::Facts f = healthy();
+        auto cs = on::buildChecks(f);
+        check(!on::needsAttention(cs), "a healthy server needs nobody");
+        check(on::staffAddress(f) == "http://RECEPTION-PC:3272",
+              "staff are given the computer's name, not its number");
+        check(has(cs, "OfficeWiFi"), "and are told which network it is on");
+        check(has(cs, "No other computer has connected yet"),
+              "and that no staff computer has tried it yet");
+
+        f.staffScreens = 3;
+        check(has(on::buildChecks(f), "3 staff screens are connected"),
+              "staff screens that are open are counted");
+
+        f = healthy();
+        f.mode = on::NetMode::LocalOnly;
+        f.profile = on::NetProfile::Public;
+        f.networkNames = "Network 2";
+        cs = on::buildChecks(f);
+        check(on::needsAttention(cs), "a public network needs somebody");
+        check(on::staffAddress(f).empty(), "and offers no address that cannot work");
+        const on::Check* trust = find(cs, on::Fix::TrustNetwork);
+        check(trust && trust->help.find("\"Network 2\"") != std::string::npos,
+              "it names the network and offers to trust it");
+
+        f = healthy();
+        f.mode = on::NetMode::Off;
+        f.profile = on::NetProfile::Public;
+        f.networkNames = "Cafe";
+        cs = on::buildChecks(f);
+        check(has(cs, "Waiting for your office network") &&
+                  find(cs, on::Fix::TrustNetwork),
+              "set to stay off on a public network, it waits rather than quitting");
+        f.profile = on::NetProfile::Unknown;
+        f.networkNames.clear();
+        check(!find(on::buildChecks(f), on::Fix::TrustNetwork),
+              "with no network at all there is nothing to trust");
+
+        f = healthy();
+        f.firewall = on::FirewallState::Blocked;
+        cs = on::buildChecks(f);
+        const on::Check* fw = find(cs, on::Fix::Firewall);
+        check(fw && fw->state == on::CheckState::NeedsYou,
+              "a firewall block needs somebody and has a fix button");
+        f.lastStaffSeen = f.now - 30'000;
+        cs = on::buildChecks(f);
+        check(!find(cs, on::Fix::Firewall) && has(cs, "just now"),
+              "but once a staff computer has got in, that proof wins");
+
+        f = healthy();
+        f.firewall = on::FirewallState::Managed;
+        cs = on::buildChecks(f);
+        check(on::needsAttention(cs) && !find(cs, on::Fix::Firewall),
+              "IT-managed: says who to ask, offers no button that cannot work");
+
+        f = healthy();
+        f.firewall = on::FirewallState::WillAsk;
+        cs = on::buildChecks(f);
+        check(!on::needsAttention(cs) && find(cs, on::Fix::Firewall),
+              "not asked yet: a heads-up, with the option to allow it now");
+
+        f = healthy();
+        f.config.writable = false;
+        check(has(on::buildChecks(f), "can't save its settings"),
+              "a folder it cannot save in is reported");
+
+        f = healthy();
+        f.config.origin = on::ConfigOrigin::RestoredFromBackup;
+        f.config.damagedCopy = "config.damaged-x.json";
+        cs = on::buildChecks(f);
+        check(has(cs, "repaired") && !on::needsAttention(cs),
+              "repaired settings are mentioned, not alarmed about");
+
+        f = healthy();
+        f.port = 3273;
+        f.portWanted = 3272;
+        check(has(on::buildChecks(f), "Using connection number 3273"),
+              "a port picked because the usual one was busy is explained");
+
+        f = healthy();
+        f.runAtSignIn = false;
+        check(find(on::buildChecks(f), on::Fix::StartWithWindows),
+              "not starting with Windows offers to");
+
+        f = healthy();
+        f.serving = false;
+        check(on::needsAttention(on::buildChecks(f)) && on::staffAddress(f).empty(),
+              "a listener it could not get back is a problem, with no address");
+
+        // Every way the checklist can go wrong, at once: every problem row
+        // explains itself, and none of it reads like an error code.
+        std::vector<on::Facts> worst;
+        for (int i = 0; i < 4; ++i) worst.push_back(healthy());
+        worst[0].mode = on::NetMode::LocalOnly;
+        worst[0].profile = on::NetProfile::Public;
+        worst[1].firewall = on::FirewallState::Blocked;
+        worst[1].config.writable = false;
+        worst[2].firewall = on::FirewallState::Managed;
+        worst[2].serving = false;
+        worst[3].mode = on::NetMode::LocalOnly;
+        worst[3].profile = on::NetProfile::Unknown;
+        worst[3].networkNames.clear();
+        bool explained = true, plain = true;
+        for (const auto& w : worst)
+            for (const auto& c : on::buildChecks(w)) {
+                if (c.state == on::CheckState::NeedsYou && c.help.empty()) explained = false;
+                for (const char* bad : {"0x", "rror", "errno", "WSA", "HRESULT", "exception"})
+                    if (c.text.find(bad) != std::string::npos ||
+                        c.help.find(bad) != std::string::npos)
+                        plain = false;
+            }
+        check(explained, "every problem says what to do about it");
+        check(plain, "and none of it is an error code");
+
+        check(on::sinceText(1000, 30'000) == "just now", "half a minute ago is just now");
+        check(on::sinceText(0, 5 * 60'000) == "5 minutes ago", "then minutes");
+        check(on::sinceText(0, 60'000) == "1 minute ago", "one minute is singular");
+    }
+
+    // ---------------------------------------------------------------------
+    section("Staff computers reaching the server");
+    {
+        on::Hub hub;
+        hub.start(on::Config::defaults());
+        check(hub.lastStaffSeen() == 0, "nobody has connected at first");
+        hub.noteStaffSeen();
+        check(hub.lastStaffSeen() > 0, "a connection from another computer is noted");
+
+        // These sockets are not real, so the hub's sends to them fail and mark
+        // them dead; what matters here is which ones stay on the hub's list.
+        auto local = std::make_shared<on::SseClient>();
+        local->station = "front";
+        auto remote = std::make_shared<on::SseClient>();
+        remote->station = "room1";
+        remote->remote = true;
+        hub.addClient(local);
+        hub.addClient(remote);
+        check(hub.staffScreens() == 1, "only screens on other computers count as staff");
+        hub.dropRemoteClients();
+        const std::string listening = hub.listeningJson().dump(0);
+        check(hub.staffScreens() == 0 && listening.find("room1") == std::string::npos,
+              "moving to an untrusted network drops other computers' screens");
+        check(listening.find("front") != std::string::npos,
+              "but leaves this computer's own alone");
+        hub.removeClient(local);
+        hub.stop();
     }
 
     // ---------------------------------------------------------------------

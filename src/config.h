@@ -79,6 +79,17 @@ struct Config {
     // when the office uses an alias its router hands out.
     std::vector<std::string> allowedHosts;
 
+    // The port every bookmark in the office uses, once the first start has
+    // picked one. 0 means "not chosen yet". port.txt and the PORT variable
+    // still win over it, so an office that set one by hand keeps it.
+    int port = 0;
+
+    // Whether the first-run welcome on the server computer has been finished.
+    // Only a brand-new settings file starts false: a file from before this
+    // existed belongs to an office that is already set up and working, and
+    // greeting them with "Welcome" after an update would be wrong.
+    bool welcomed = false;
+
     std::vector<Station> stations;
     std::vector<Preset> presets;
 
@@ -102,11 +113,44 @@ struct Config {
     const Preset* findPreset(const std::string& id) const;
 };
 
-// Reads data/config.json, falling back to the defaults (and writing them out)
-// when the file is missing or damaged - the office is never left with no
-// settings at all.
-Config loadConfig();
+// How the settings came to be what they are this time, so the server window
+// can say so in plain words instead of quietly starting with different rooms.
+enum class ConfigOrigin {
+    Loaded,              // read as usual
+    Created,             // no file yet: a brand-new office, defaults written
+    RestoredFromBackup,  // the file was damaged; the last good copy was used
+    ResetDamaged         // damaged and no usable backup: defaults
+};
+
+struct ConfigReport {
+    ConfigOrigin origin = ConfigOrigin::Loaded;
+    // Could Dental Comms write in its data folder? False when it has been put
+    // somewhere Windows protects, which would lose every change made.
+    bool writable = true;
+    // The name a damaged file was set aside under, so nothing is lost.
+    std::string damagedCopy;
+};
+
+// Reads data/config.json, never leaving the office with no settings at all:
+//   - missing        -> the defaults, written out
+//   - damaged        -> set aside as config.damaged-<date>.json, then the
+//                       last good copy (config.backup.json), else defaults
+// Every successful save also refreshes config.backup.json, so a hand edit
+// that breaks the file costs nothing.
+Config loadConfig(ConfigReport* report = nullptr);
 bool saveConfig(const Config& cfg);
+
+// The same, for a given data folder. Used by the self-test so it never has to
+// touch the office's real settings.
+Config loadConfigFrom(const std::string& dataDir, ConfigReport* report = nullptr);
+bool saveConfigTo(const std::string& dataDir, const Config& cfg);
+
+// <resourceRoot>\data
+std::string dataDir();
+
+// Reads a settings file's text. False when it is not a settings object at all
+// (not JSON, or not an object) - the "damaged" case.
+bool parseConfig(const std::string& text, Config& out);
 
 // Where public/ and data/ live. Normally the folder holding the .exe, but the
 // parent is checked too so the server still works when built into build\.

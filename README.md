@@ -51,10 +51,10 @@ any web browser.
    one of:
 
    - **`DentalComms-Setup-<version>.exe`** (recommended): run it and click
-     through. It needs no administrator password, adds Dental Comms to the
-     Start menu, ticks **Start with Windows** for you, and can be removed
-     later from *Settings → Apps* like any other program. It installs to
-     `%LOCALAPPDATA%\Programs\Dental Comms`.
+     **Install**. That's the only page. It needs no administrator password,
+     adds Dental Comms to the Start menu, sets it to start with Windows, and
+     can be removed later from *Settings → Apps* like any other program. It
+     installs to `%LOCALAPPDATA%\Programs\Dental Comms`.
    - **`DentalComms-<version>-windows-x64.zip`** (portable): **unzip the whole
      folder** anywhere you can write to, then **double-click
      `DentalComms.exe`** inside it. Nothing is installed; delete the folder to
@@ -69,9 +69,22 @@ any web browser.
    [Code signing policy](#code-signing-policy)), so Windows doesn't know the
    publisher.
 
-   A small window opens saying *"Dental Comms is running"* and lists the web
-   addresses it can be reached at, with buttons to copy the staff address or
-   open it here.
+   The first time, a small window walks you through three screens:
+
+   1. **Welcome.** It says what Dental Comms is for and warns you that
+      Windows may ask whether Dental Comms can use your network. Click
+      **Allow** when it does.
+   2. **Checking.** A checklist fills itself in: Dental Comms is running,
+      settings can be saved, the network is your office network, Windows
+      Firewall will let other computers in, and it starts with Windows.
+      Anything that needs you is marked **!** with a plain explanation, and
+      usually a button that fixes it (see
+      [What the window checks](#what-the-window-checks)).
+   3. **Ready.** The address to give every other computer, with buttons to
+      copy it, print a setup card, or open it here.
+
+   After that, the same window is a status page: the address, and the same
+   checklist kept up to date while Dental Comms runs.
 
    **Closing that window no longer turns Dental Comms off.** It tucks itself
    into the notification area (the ⌃ arrow by the clock) and keeps running —
@@ -80,10 +93,13 @@ any web browser.
    console window stopped the whole office's messaging, which is not something
    a window close should ever do.
 
-   While you are there, right-click that icon and check **Start with
-   Windows** is ticked (the installer ticks it; with the zip, tick it
-   yourself). The server computer will then bring Dental Comms up by itself,
-   straight into the notification area, whenever it restarts.
+   **Start with Windows** is switched on for you, by the installer or (with
+   the zip) by the first start. The server computer brings Dental Comms up by
+   itself, straight into the notification area, whenever it restarts. To turn
+   that off, right-click the icon and untick it.
+
+   Opening Dental Comms again while it is already running just brings its
+   window back. Only one copy runs on a computer.
 
    > There is nothing else to install first, and no Node.js or anything else
    > to download. With the zip, keep the folder together: the `.dll` files
@@ -92,20 +108,20 @@ any web browser.
    > out of it.
    >
    > If Windows Firewall asks whether to allow it on your network the first
-   > time, click **Allow** — staff computers can't reach it otherwise.
+   > time, click **Allow**, or staff computers can't reach it. If someone
+   > clicked Cancel, the window says so and offers **Let them in**, which
+   > fixes it after a Windows administrator prompt.
 
 3. **On every staff computer**, open a web browser (Chrome, Edge, Safari — any)
-   and type in one of the *"Other computers"* addresses shown in that window.
-   **Bookmark it** and drag the bookmark to the desktop or bookmarks bar so
-   staff can open it with one click.
+   and type in the address the window shows, for example
+   `http://RECEPTION-PC:3272`. **Bookmark it.**
 
-   The window offers three ways in, and all of them work:
+   **Print a setup card** (a button in the window, or `/card`) gives you one
+   page with the address, a QR code that tablets and phones can scan with
+   their camera, and these steps. Leave one by each computer.
 
-   ```
-     On this computer:  http://localhost:3272
-     Other computers:   http://RECEPTION-PC:3272
-                        http://192.168.1.25:3272
-   ```
+   The number addresses (`http://192.168.1.25:3272`) work too. The card lists
+   them as a fallback.
 
    > **Bookmark the name, not the number.** Router restarts can change a
    > computer's number address, silently breaking every bookmark in the office
@@ -117,11 +133,45 @@ any web browser.
    > `localhost` only works *on the server computer itself*. It's there so
    > whoever set it up can check it immediately, not for staff machines.
 
-4. Each computer will ask **"Which station is this computer at?"** — tap the
-   right one. That's it; it's remembered from then on.
+4. The first time, each computer asks three quick things:
+
+   1. **Which room is this computer in?** Tap it. That tap also lets the
+      browser play sound.
+   2. **Did you hear a chime?** If not, it says to check the volume and plays
+      it again.
+   3. **Open Dental Comms by itself every morning?** (Windows computers with
+      Edge or Chrome only.) **Yes** downloads a small setup file; open it once
+      and Dental Comms opens in its own window at every sign-in. See
+      [Set up this computer](#set-up-this-computer-once-per-machine).
+
+   That's it; it's remembered from then on. Computers that were already set
+   up before this version skip straight to their messages.
 
 Only the server computer needs to be Windows. Staff can use anything with a
 browser — Windows, Mac, iPad, a phone.
+
+## What the window checks
+
+The server window keeps a checklist and rechecks it every few seconds. Green
+means fine, blue is worth knowing, and **!** needs someone.
+
+| Row | What it means | What you can do |
+|---|---|---|
+| Dental Comms is running | It is listening for the other computers. | — |
+| Using connection number 3273 | The usual number was taken on the first start, so it picked the next free one. Only ever happens before setup is finished, so no bookmarks break. | Nothing. |
+| Your settings were repaired / reset | `data\config.json` was damaged. It was set aside as `config.damaged-<date>.json` and replaced by the last good copy (`config.backup.json`) or, failing that, the standard rooms. | Nothing, unless you want something back from the damaged file. |
+| Dental Comms can't save its settings | It is in a folder Windows protects. | Use the installer instead. |
+| Other computers can't connect yet | Windows calls this network **Public**. | **Yes, this is our office network** marks it Private (administrator prompt). Dental Comms switches over without a restart. |
+| Windows Firewall is keeping other computers out | Someone clicked Cancel on Windows' "allow access" box, which leaves a blocking rule behind. | **Let them in** switches off the blocking rule and adds an allow rule for office networks (administrator prompt). |
+| Your office's IT settings may be keeping other computers out | Firewall rules come from the domain. | Ask IT to allow Dental Comms (TCP, the port shown). |
+| 3 staff screens are connected / Reached from another computer | Proof that staff computers get through. Once this shows, the firewall row is no longer needed. | — |
+| Doesn't start by itself yet | It won't come back after a restart. | **Start it with Windows**. |
+
+If the network changes while Dental Comms is running (a laptop server moved
+to another network, say), it follows: it closes to other computers on a
+Public network and opens up again on the office one, with no restart. When
+something goes wrong while the window is hidden, a notification by the clock
+says so once; clicking it opens the window.
 
 ## Everyday use (what staff see)
 
@@ -262,16 +312,23 @@ steady tint instead.
 - **The Dental Comms folder** is where `DentalComms.exe` is:
   `%LOCALAPPDATA%\Programs\Dental Comms` if you used the installer (paste that
   into File Explorer's address bar), or wherever you unzipped it.
-- **Port number:** Dental Comms talks on port `3272` — an uncommon number chosen
-  so it won't clash with other software. If it ever needs to change, create a
-  file named `port.txt` in the Dental Comms folder containing just a different
-  number (e.g. `8123`), restart Dental Comms, and update the bookmarks to match.
-- Settings are saved in `data\config.json` in the Dental Comms folder; back
-  that file up if you've done a lot of customizing. Updating keeps it, and
-  uninstalling asks before deleting it.
-- **Updating:** right-click the icon by the clock, choose *Turn Dental Comms
-  off*, then run the new installer (or copy the new zip's files over the
-  old ones). The installer will not continue while Dental Comms is running.
+- **Port number:** Dental Comms talks on port `3272`, an uncommon number
+  chosen so it won't clash with other software. If that is taken the very
+  first time, it picks the next free one by itself and remembers it (as
+  `"port"` in `data\config.json`). After setup it never moves on its own,
+  because every bookmark depends on it: if another program takes it, Dental
+  Comms says which program and offers **Try again** or **Use a different
+  number**. A `port.txt` file in the Dental Comms folder still overrides all
+  of this, as before.
+- Settings are saved in `data\config.json` in the Dental Comms folder, and
+  every save also refreshes `data\config.backup.json`, which is what a
+  damaged file is repaired from. Updating keeps both, and uninstalling asks
+  before deleting the `data` folder.
+- **Updating:** run the new installer. If Dental Comms is running, the
+  installer says it will turn it off for about a minute, does so, and starts
+  it again afterwards. Silent installs (winget) do the same without asking.
+  With the zip, turn it off from the icon by the clock and copy the new files
+  over the old ones.
 
 ## Which networks it will answer on
 
@@ -290,9 +347,11 @@ The window tells you which one applies every time it starts, so you're never
 guessing.
 
 **"Staff can't connect and the window says Public."** Windows has decided your
-office network is an unfamiliar one. Tell it otherwise: Settings → Network &
-internet → click your connection → set the network profile to **Private**.
-Restart Dental Comms and staff computers will reach it.
+office network is an unfamiliar one. Click **Yes, this is our office network**
+in the Dental Comms window (it needs an administrator's OK), or do it by hand:
+Settings → Network & internet → click your connection → set the network
+profile to **Private**. Either way, Dental Comms notices within a few seconds;
+no restart needed.
 
 If several networks are connected at once — office Ethernet plus a phone
 hotspot, say — the least trusted one wins, because anything Dental Comms serves
@@ -306,7 +365,8 @@ To change the rules, edit `"networks"` in `data/config.json`:
 
 - `office` — serve everyone on the network
 - `local-only` — serve this computer alone
-- `off` — refuse to start at all
+- `off` — serve nobody, not even this computer. Dental Comms waits by the
+  clock and starts serving by itself once it is on a network it may use.
 
 Settings you make on the ⚙️ Settings page never overwrite this.
 
@@ -339,19 +399,21 @@ Saving from the Settings page leaves them alone.
 | `escalateAfterSeconds` | `120` | How long an alert may go unanswered before the sender is told. `0` turns it off. |
 | `expireAfterSeconds` | `3600` | How long before an unanswered alert is given up on entirely. `0` means never. |
 | `allowedHosts` | `[]` | Extra names this server may be reached by. |
+| `port` | picked on first start | The connection number. Written the first time Dental Comms starts; `port.txt` overrides it. |
+| `welcomed` | `false` on a new install | Whether the first-run welcome was finished. Set it to `false` to see the welcome again. |
 
 ## If something isn't working
 
 | Problem | Fix |
 |---|---|
-| Page won't load on staff computers | Is the server window still open? Is the address typed exactly as shown? Both computers on the same office network/Wi-Fi (not "guest" Wi-Fi)? |
+| Page won't load on staff computers | Open the Dental Comms window on the server and look for a row marked **!**. Otherwise: is the address typed exactly as shown? Both computers on the same office network/Wi-Fi (not "guest" Wi-Fi)? |
 | "Dental Comms does not answer to that address" | You reached it by a name it doesn't recognise. Use the address in the Dental Comms window, or add the name to `allowedHosts` (see above). |
 | A room always says *no screen open* | Nobody has Dental Comms open there, or that computer picked a different station. Open the page there and check the station name in the top-right. |
-| Server window says another program is using the port | Follow the message it prints: put a different number in a `port.txt` file and restart. |
+| "Dental Comms can't start yet" with a program's name | That program is using Dental Comms' connection number. Close it and click **Try again**, or choose **Use a different number** and update the bookmarks to the new address the window shows. |
 | No sound | Tap anywhere on the page once. Check the computer isn't muted. |
-| "Could not send" message | The server computer is off or the window was closed — restart Dental Comms there. |
+| "Couldn't send" message, or a red bar at the top | The server computer is off or Dental Comms was turned off there. The red bar names the computer to check. |
 | Wrong station name on a computer | Tap the station name in the top-right corner and pick again. |
-| Staff computers can't reach it, but the server page works | Two possibilities. If the window says *Public*, see "Which networks it will answer on" above. Otherwise Windows Firewall is blocking it — allow `DentalComms.exe` on private networks. |
+| Staff computers can't reach it, but the server page works | The window's checklist names the cause: a Public network or a firewall rule, each with a button to fix it. See [What the window checks](#what-the-window-checks). |
 | An address in the window doesn't work from other computers | Use another one it lists. Dental Comms already hides the addresses it knows are unreachable (see below), but it cannot always tell. |
 
 ### Which addresses it offers you
@@ -396,7 +458,7 @@ Prompt first:
 
 ```bash
 build.bat        # produces DentalComms.exe
-run_tests.bat    # 208 checks over every non-networking part
+run_tests.bat    # 282 checks over every non-networking part
 package.bat      # the installer and the zip that go to the office, in dist\
 ```
 
@@ -477,17 +539,34 @@ The code is laid out as:
 
 ```
 src/
-  main.cpp     port selection, the startup banner, the accept loop
+  main.cpp     startup: port selection, following the network, the accept loop
+  gui.cpp      the window: first-run welcome, status checklist, tray icon
+  checks.cpp   the checklist's rows and words, built from plain facts
+  firewall.cpp reading Windows Firewall's rules, and the elevated fix
   routes.cpp   the API, static files, and the event stream
   state.cpp    live alerts, the activity log, broadcasting
-  config.cpp   settings model, validation, data/config.json
-  network.cpp  is this a Domain, Private or Public network?
+  config.cpp   settings model, validation, data/config.json, backup/repair
+  network.cpp  is this a Domain, Private or Public network? (and the fix)
   http.cpp     sockets, request parsing, Server-Sent Events
   json.cpp     JSON parser/writer
   util.cpp     strings, paths, files
 tests/
   selftest.cpp
 ```
+
+`DentalComms.exe` takes a few switches besides `--tray`. `--quit` asks the
+running copy to turn off. `--fix-firewall` and `--trust-network` are the two
+jobs that need an administrator: the window starts a second copy with one of
+them through a UAC prompt, and that copy does the job and exits. The program
+as a whole never runs elevated (see `src/app.manifest`). The installer turns
+a running server off by posting the tray menu's "Turn Dental Comms off"
+command (`WM_COMMAND` 204) to its window, which every 0.9 version
+understands, so that id must never change.
+
+Everything the checklist says comes from `buildChecks()` in `checks.cpp`, a
+function from a plain `Facts` struct to rows. The self-test drives it through
+every state and fails if any problem row lacks an explanation or reads like
+an error code.
 
 On a Public network the restriction is a `bind()` to `127.0.0.1` rather than
 every interface, so it is the operating system refusing the connection, not
@@ -566,6 +645,11 @@ in `data/config.json` and in memory.
 
 Dental Comms is open source under the [MIT License](LICENSE).
 Copyright © 2026 SMEdevelop.
+
+`public/qrcode.js` (used by the printable setup card) is
+[QR Code Generator](https://github.com/kazuhikoarase/qrcode-generator) by
+Kazuhiko Arase, also under the MIT License; its notice is at the top of the
+file. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
 
 You may use, copy, modify, merge, publish, distribute, sublicense and sell it,
 provided the copyright notice and the license text travel with it.

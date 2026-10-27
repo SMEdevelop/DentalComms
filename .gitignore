@@ -14,6 +14,8 @@
 # quick-message buttons, allowed host names. Dental Comms recreates it with the
 # defaults on first start, so a fresh clone needs nothing here.
 /data/config.json
+/data/config.backup.json
+/data/config.damaged-*.json
 
 # Optional local port override (see the README).
 /port.txt

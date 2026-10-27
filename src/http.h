@@ -62,6 +62,11 @@ struct SseClient {
     // picked one yet. Set once before the client is shared with the hub and
     // never touched again, so it is safe to read without the mutex.
     std::string station;
+    // Connected from another computer rather than this one. Set once, like
+    // `station`. When Windows moves to an untrusted network these are the
+    // streams that have to be dropped, or "this computer only" would be a
+    // promise the open connections were still breaking.
+    bool remote = false;
     std::mutex mu;
     std::atomic<bool> dead{false};
 
@@ -114,5 +119,17 @@ bool isLinkLocalIPv4(const std::string& ip);
 // A name that resolves somewhere else cannot match it, which is what makes it
 // worth checking the Host header against.
 std::string localAddressOf(SOCKET s);
+
+// The address a connection came from. Used to tell a staff computer from the
+// server's own browser, which is the only real proof that other computers can
+// reach this one.
+std::string peerAddressOf(SOCKET s);
+bool isLoopbackIPv4(const std::string& ip);
+
+// Which program is listening on `port`, by file name ("Skype.exe"), so a busy
+// port can be explained as "Skype is using it" instead of a number nobody
+// recognises. Returns "Windows" (and sets isSystem) when Windows' own HTTP
+// service holds it, and "" when nothing does or Windows will not say.
+std::string portOwner(int port, bool* isSystem = nullptr);
 
 }  // namespace on

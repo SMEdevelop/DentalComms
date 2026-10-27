@@ -365,3 +365,53 @@ std::vector<std::string> localIPv4() {
 }
 
 }  // namespace on
+
+namespace on {
+
+std::string portOwner(int port, bool* isSystem) {
+    if (isSystem) *isSystem = false;
+    ULONG size = 0;
+    GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET,
+                        TCP_TABLE_OWNER_PID_LISTENER, 0);
+    // A listener may come or go between the two calls; a little headroom
+    // means that does not turn into a failed lookup.
+    std::vector<BYTE> buf(size + 4096);
+    size = (ULONG)buf.size();
+    auto* t = reinterpret_cast<MIB_TCPTABLE_OWNER_PID*>(buf.data());
+    if (GetExtendedTcpTable(t, &size, FALSE, AF_INET,
+                            TCP_TABLE_OWNER_PID_LISTENER, 0) != NO_ERROR)
+        return "";
+    for (DWORD i = 0; i < t->dwNumEntries; ++i) {
+        if (ntohs((u_short)t->table[i].dwLocalPort) != port) continue;
+        const DWORD pid = t->table[i].dwOwningPid;
+        // PID 4 is Windows itself: the kernel's HTTP service, which IIS and a
+        // number of Windows features listen through.
+        if (pid == 4) {
+            if (isSystem) *isSystem = true;
+            return "Windows";
+        }
+        std::string name;
+        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+            wchar_t path[MAX_PATH];
+            DWORD n = MAX_PATH;
+            if (QueryFullProcessImageNameW(p, 0, path, &n))
+                name = baseName(narrow(path));
+            CloseHandle(p);
+        }
+        return name;
+    }
+    return "";
+}
+
+std::string peerAddressOf(SOCKET s) {
+    sockaddr_in addr{};
+    int len = sizeof(addr);
+    if (::getpeername(s, (sockaddr*)&addr, &len) == SOCKET_ERROR) return "";
+    char ip[INET_ADDRSTRLEN] = {0};
+    if (!inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip))) return "";
+    return ip;
+}
+
+bool isLoopbackIPv4(const std::string& ip) { return ip.rfind("127.", 0) == 0; }
+
+}  // namespace on

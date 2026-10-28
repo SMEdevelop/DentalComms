@@ -311,21 +311,19 @@
     }
   }
 
+  // Shown only while at least one room is picked, as in 0.9.4. Clear, or
+  // sending, takes it away again.
   function renderSendBar() {
-    const btn = $('send-bar-btn');
-    $('send-bar-clear').hidden = !selected.size;
-    if (!selected.size) {
-      btn.disabled = true;
-      btn.textContent = 'Pick a room first';
-      return;
-    }
+    const bar = $('send-bar');
+    if (!selected.size) { bar.hidden = true; return; }
     const others = otherStations();
     const label = selected.size === others.length && others.length > 1 ? 'everyone'
       : selected.size <= 2 ? listNames([...selected])
       : `${selected.size} rooms`;
-    btn.disabled = false;
+    const btn = $('send-bar-btn');
     btn.innerHTML = dcIcon('send');
     btn.append(`Send message to ${label}`);
+    bar.hidden = false;
   }
   $('send-bar-btn').onclick = () => openCompose();
   $('send-bar-clear').onclick = () => { selected.clear(); renderGrid(); renderSendBar(); };

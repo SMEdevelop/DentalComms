@@ -59,7 +59,7 @@ rem  the linker would collide with it.
 set LDFLAGS=/link /INCREMENTAL:NO /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS /MANIFEST:NO
 set LIBS=ws2_32.lib iphlpapi.lib shlwapi.lib ole32.lib oleaut32.lib uuid.lib advapi32.lib user32.lib gdi32.lib shell32.lib comctl32.lib
 
-set SOURCES=src\main.cpp src\gui.cpp src\checks.cpp src\firewall.cpp src\shortcut.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
+set SOURCES=src\main.cpp src\gui.cpp src\icons.cpp src\checks.cpp src\firewall.cpp src\shortcut.cpp src\routes.cpp src\state.cpp src\config.cpp src\network.cpp src\http.cpp src\json.cpp src\util.cpp
 
 echo  Compiling resources...
 rc /nologo /fo build\app.res src\app.rc

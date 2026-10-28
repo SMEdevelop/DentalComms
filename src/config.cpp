@@ -141,18 +141,66 @@ std::string resourceRoot() {
     return here;
 }
 
+namespace {
+
+struct MessageColour {
+    const char* hex;
+    int r, g, b;
+};
+// msg-red, msg-green, msg-blue, msg-ochre, msg-plum, msg-spruce, msg-walnut.
+const MessageColour kMessageColours[] = {
+    {"#b4483a", 0xb4, 0x48, 0x3a}, {"#4f7a52", 0x4f, 0x7a, 0x52},
+    {"#3d6b8e", 0x3d, 0x6b, 0x8e}, {"#9a6a2e", 0x9a, 0x6a, 0x2e},
+    {"#7a5a7e", 0x7a, 0x5a, 0x7e}, {"#3f7a74", 0x3f, 0x7a, 0x74},
+    {"#6f5a48", 0x6f, 0x5a, 0x48},
+};
+// The colours of the buttons Dental Comms shipped before, and the colour
+// with the same meaning now.
+const char* const kOldColours[][2] = {
+    {"#d64545", "#b4483a"}, {"#c0392b", "#b4483a"}, {"#2f9e44", "#4f7a52"},
+    {"#1c7ed6", "#3d6b8e"}, {"#e8890c", "#9a6a2e"}, {"#7048b6", "#7a5a7e"},
+    {"#0ca678", "#3f7a74"},
+};
+
+}  // namespace
+
+std::string nearestMessageColour(const std::string& in) {
+    if (!isHexColor(in)) return "#3d6b8e";   // msg-blue, the default
+    const std::string hex = lower(in);
+    for (const auto& c : kMessageColours)
+        if (hex == c.hex) return c.hex;
+    for (const auto& o : kOldColours)
+        if (hex == o[0]) return o[1];
+    const int r = std::stoi(hex.substr(1, 2), nullptr, 16);
+    const int g = std::stoi(hex.substr(3, 2), nullptr, 16);
+    const int b = std::stoi(hex.substr(5, 2), nullptr, 16);
+    // "Redmean": a cheap distance that weighs the channels roughly the way
+    // eyes do, so a pinkish red lands on terracotta rather than plum.
+    const char* best = kMessageColours[0].hex;
+    long bestD = -1;
+    for (const auto& c : kMessageColours) {
+        const long rm = (r + c.r) / 2, dr = r - c.r, dg = g - c.g, db = b - c.b;
+        const long d = (((512 + rm) * dr * dr) >> 8) + 4 * dg * dg + (((767 - rm) * db * db) >> 8);
+        if (bestD < 0 || d < bestD) {
+            bestD = d;
+            best = c.hex;
+        }
+    }
+    return best;
+}
+
 Config Config::defaults() {
     Config c;
     c.officeName = "Our Office";
     c.stations = {{"front", "Front Desk"}, {"room1", "Room 1"},
                   {"room2", "Room 2"},     {"room3", "Room 3"},
                   {"office", "Back Office"}, {"lab", "Lab"}};
-    c.presets = {{"doctor", "Doctor needed", "#d64545", true},
-                 {"ready", "Patient is ready", "#2f9e44", false},
-                 {"phone", "Phone call for you", "#1c7ed6", false},
-                 {"assist", "Please assist", "#e8890c", false},
-                 {"checkout", "Ready for checkout", "#7048b6", false},
-                 {"comehere", "Please come here", "#0ca678", false}};
+    c.presets = {{"doctor", "Doctor needed", "#b4483a", true},          // msg-red
+                 {"ready", "Patient is ready", "#4f7a52", false},       // msg-green
+                 {"phone", "Phone call for you", "#3d6b8e", false},     // msg-blue
+                 {"assist", "Please assist", "#9a6a2e", false},         // msg-ochre
+                 {"checkout", "Ready for checkout", "#7a5a7e", false},  // msg-plum
+                 {"comehere", "Please come here", "#3f7a74", false}};   // msg-spruce
     return c;
 }
 
@@ -243,7 +291,7 @@ bool Config::applyFromJson(const js::Value& body, std::string& error) {
         pr.id = clampUtf8(jsStringOr(p.find("id"), newId()), 40);
         pr.label = clampUtf8(jsStringOr(p.find("label"), "Message"), 60);
         const std::string color = p.str("color");
-        pr.color = isHexColor(color) ? color : "#1c7ed6";
+        pr.color = nearestMessageColour(color);
         pr.urgent = jsTruthy(p.find("urgent"));
         next.presets.push_back(std::move(pr));
     }
@@ -313,7 +361,7 @@ bool parseConfig(const std::string& text, Config& c) {
             pr.id = p.str("id");
             pr.label = p.str("label", "Message");
             const std::string color = p.str("color");
-            pr.color = isHexColor(color) ? color : "#1c7ed6";
+            pr.color = nearestMessageColour(color);
             pr.urgent = p.boolean("urgent");
             if (!pr.id.empty()) c.presets.push_back(std::move(pr));
         }

@@ -72,6 +72,11 @@ bool needsAttention(const std::vector<Check>& checks);
 // no other computer can reach this one right now.
 std::string staffAddress(const Facts& f);
 
+// The same address by number, e.g. "http://192.168.1.25:3272", for computers
+// that can't find this one by name. Empty when there is no address at all, or
+// when the computer has no usable number.
+std::string staffIpAddress(const Facts& f);
+
 // "just now", "4 minutes ago", "at 9:14".
 std::string sinceText(long long thenMs, long long nowMs);
 

@@ -76,7 +76,7 @@ int main() {
               "the front desk is first");
         const on::Preset* doc = c.findPreset("doctor");
         check(doc && doc->urgent, "'Doctor needed' is marked urgent");
-        check(doc && doc->color == "#d64545", "it kept its red");
+        check(doc && doc->color == "#b4483a", "in the urgent terracotta");
         check(c.findPreset("nope") == nullptr, "an unknown button is not found");
         check(c.hasStation("lab"), "the lab is a station");
         check(!c.hasStation("moon"), "the moon is not");
@@ -130,7 +130,7 @@ int main() {
         odd["presets"].arr[0]["urgent"] = 1;  // truthy, but not a bool
         err.clear();
         c.applyFromJson(odd, err);
-        check(c.presets[0].color == "#1c7ed6", "a bad colour falls back to blue");
+        check(c.presets[0].color == "#3d6b8e", "a bad colour falls back to denim");
         check(c.presets[0].label == "Message", "a missing label gets a default");
         check(c.stations[0].name == "Station", "a missing station name too");
         check(c.presets[0].urgent, "a truthy non-boolean counts as urgent");
@@ -144,6 +144,32 @@ int main() {
     }
 
     // ---------------------------------------------------------------------
+    section("Message colours");
+    {
+        check(on::nearestMessageColour("#3f7a74") == "#3f7a74",
+              "the seven colours stay as they are");
+        check(on::nearestMessageColour("#D64545") == "#b4483a" &&
+                  on::nearestMessageColour("#2f9e44") == "#4f7a52" &&
+                  on::nearestMessageColour("#1c7ed6") == "#3d6b8e" &&
+                  on::nearestMessageColour("#e8890c") == "#9a6a2e" &&
+                  on::nearestMessageColour("#7048b6") == "#7a5a7e" &&
+                  on::nearestMessageColour("#0ca678") == "#3f7a74",
+              "the old default colours keep their meaning");
+        check(on::nearestMessageColour("#ff0000") == "#b4483a", "a bright red becomes terracotta");
+        check(on::nearestMessageColour("#00a000") == "#4f7a52", "a green becomes sage");
+        check(on::nearestMessageColour("#2050ff") == "#3d6b8e", "a blue becomes denim");
+        check(on::nearestMessageColour("#8b5a2b") == "#9a6a2e" ||
+                  on::nearestMessageColour("#8b5a2b") == "#6f5a48",
+              "a brown becomes ochre or walnut");
+        check(on::nearestMessageColour("blue") == "#3d6b8e", "a word is not a colour: denim");
+        on::Config c = on::Config::defaults();
+        js::Value body = c.toJson();
+        body["presets"].arr[0]["color"] = "#ff1111";
+        std::string err;
+        check(c.applyFromJson(body, err) && c.presets[0].color == "#b4483a",
+              "a colour saved from Settings is snapped too");
+    }
+
     section("Text handling");
     {
         on::Config c = on::Config::defaults();
@@ -254,7 +280,7 @@ int main() {
         check(hub.createSignals(good, made, err), "sends a quick message");
         check(made.size() == 1, "one alert for one room");
         check(made[0].label == "Doctor needed", "carries the button's words");
-        check(made[0].color == "#d64545", "and its colour");
+        check(made[0].color == "#b4483a", "and its colour");
         check(made[0].urgent, "and its urgency");
         check(made[0].presetId == "doctor", "and which button it was");
         check(made[0].id.size() == 36, "gets an id");
@@ -1127,6 +1153,19 @@ int main() {
         check(!on::needsAttention(cs), "a healthy server needs nobody");
         check(on::staffAddress(f) == "http://RECEPTION-PC:3272",
               "staff are given the computer's name, not its number");
+        check(on::staffIpAddress(f) == "http://192.168.1.25:3272",
+              "and its number too, for computers that can't find the name");
+        {
+            on::Facts noName = healthy();
+            noName.computer.clear();
+            noName.addresses = {"192.168.1.25"};
+            check(on::staffAddress(noName) == on::staffIpAddress(noName),
+                  "with no name, both addresses are the number");
+            noName.addresses = {"RECEPTION-PC"};
+            noName.computer = "RECEPTION-PC";
+            check(on::staffIpAddress(noName).empty(),
+                  "with no number, there is no second address");
+        }
         check(has(cs, "OfficeWiFi"), "and are told which network it is on");
         check(has(cs, "No other computer has connected yet"),
               "and that no staff computer has tried it yet");
@@ -1141,7 +1180,8 @@ int main() {
         f.networkNames = "Network 2";
         cs = on::buildChecks(f);
         check(on::needsAttention(cs), "a public network needs somebody");
-        check(on::staffAddress(f).empty(), "and offers no address that cannot work");
+        check(on::staffAddress(f).empty() && on::staffIpAddress(f).empty(),
+              "and offers no address that cannot work");
         const on::Check* trust = find(cs, on::Fix::TrustNetwork);
         check(trust && trust->help.find("\"Network 2\"") != std::string::npos,
               "it names the network and offers to trust it");

@@ -4,123 +4,134 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Set up this computer — Dental Comms</title>
-<meta name="theme-color" content="#1c7ed6">
+<meta name="theme-color" content="#fffdf9">
+<link rel="stylesheet" href="sme/tokens.css">
+<link rel="stylesheet" href="sme/components.css">
+<link rel="stylesheet" href="style.css">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
-  :root { --blue:#1c7ed6; --ink:#1f2933; --muted:#647382; --line:#dfe4ea; }
-  * { box-sizing: border-box; }
-  body { margin:0; padding:24px 16px 64px; background:#f4f6f8; color:var(--ink);
-         font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .wrap { max-width: 680px; margin: 0 auto; }
-  h1 { font-size: 1.6rem; margin: 0 0 4px; }
-  h2 { font-size: 1.15rem; margin: 0 0 10px; }
-  .lede { color: var(--muted); margin: 0 0 26px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:12px;
-          padding:20px; margin-bottom:18px; }
-  ol { margin: 0; padding-left: 22px; }
-  ol li { margin-bottom: 12px; }
-  code, kbd { background:#eef1f5; border-radius:5px; padding:2px 7px;
-              font:14px/1.4 ui-monospace, Consolas, monospace; }
-  .btn { display:inline-block; background:var(--blue); color:#fff;
-         text-decoration:none; border:0; border-radius:9px;
-         padding:13px 20px; font-size:1rem; font-weight:600; cursor:pointer; }
-  .btn:hover { filter: brightness(1.07); }
-  .btn.secondary { background:#fff; color:var(--blue); border:1.5px solid var(--blue); }
-  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px; }
-  .hint { color:var(--muted); font-size:0.92rem; margin:10px 0 0; }
-  .addr { font:15px/1.5 ui-monospace, Consolas, monospace; background:#eef1f5;
-          border-radius:8px; padding:10px 12px; word-break:break-all; }
-  .backlink { display:inline-block; margin-bottom:18px; color:var(--blue);
-              text-decoration:none; font-weight:600; }
-  .note { border-left:4px solid var(--blue); background:#eaf3fc; padding:12px 14px;
-          border-radius:0 8px 8px 0; margin-top:14px; font-size:0.94rem; }
-  .fail { border-left-color:#d9480f; background:#fdece4; }
-  #installed { display:none; }
+  #main { max-width: 760px; padding-bottom: var(--space-7); }
+  .back { margin-bottom: var(--space-4); }
+  h1 + .lede { margin-bottom: var(--space-5); }
+  .card {
+    background: var(--surface-raised); border: 2px solid var(--line);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-soft);
+    padding: var(--space-5); margin-bottom: var(--space-5);
+  }
+  .card h2 { font: 700 20px/26px var(--font-sans); margin-bottom: var(--space-2); }
+  .card p + p { margin-top: var(--space-2); }
+  .addr {
+    padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+    background: var(--sky-100); color: var(--primary-ink);
+    font: 700 22px/28px var(--font-sans); overflow-wrap: anywhere;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+  .card .hint { margin-top: var(--space-3); }
+  ol { margin: var(--space-4) 0 0; padding-left: var(--space-5); }
+  ol li { margin-bottom: var(--space-2); }
+  code {
+    background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 1px 8px;
+    font: 15px/22px Consolas, ui-monospace, monospace;
+  }
+  .card .sme-banner { margin-top: var(--space-4); }
+  details { margin-top: var(--space-4); }
+  summary {
+    display: inline-flex; align-items: center; min-height: var(--target-min);
+    color: var(--primary-ink); font-weight: 600; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  details p { color: var(--ink-muted); }
+  .done {
+    display: flex; gap: var(--space-3); align-items: flex-start;
+    margin-top: var(--space-4); padding: var(--space-3) var(--space-4);
+    background: var(--success-tint); border-radius: var(--radius-md);
+  }
+  .done .dc-icon { color: var(--success); margin-top: 2px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main id="main">
 
-  <a class="backlink" href="/">← Back to messages</a>
-  <h1>Set up this computer</h1>
-  <p class="lede">Do this once per computer. It takes about a minute, and then
-    Dental Comms opens in its own window every morning without anyone
-    touching it.</p>
+  <a class="sme-btn sme-btn--quiet back" href="/"><span data-icon="back"></span>Back to messages</a>
+  <h1 class="title">Set up this computer</h1>
+  <p class="lede">Do this once on each computer. It takes about a minute, and then Dental
+    Comms opens in its own window every morning without anyone touching it.</p>
 
-  <div class="card">
-    <h2>1. The address for this office</h2>
+  <section class="card">
+    <h2>What's this office's address?</h2>
     <div class="addr" id="addr">…</div>
-    <div class="row">
-      <button class="btn secondary" id="copy">Copy this address</button>
-      <a class="btn secondary" href="/card">Print a setup card</a>
+    <div class="actions">
+      <button class="sme-btn sme-btn--secondary" id="copy"><span data-icon="copy"></span><span id="copy-text">Copy address</span></button>
+      <a class="sme-btn sme-btn--secondary" href="/card"><span data-icon="printer"></span>Print setup card</a>
     </div>
-    <p class="hint">Bookmark the version with a <em>name</em> in it rather than
-      numbers where you can — router restarts change the numbers and break
-      every bookmark in the office at once.</p>
-  </div>
+    <p class="hint">Bookmark the address with a name in it where you can. Router restarts
+      can change the numbers and break every bookmark in the office at once.</p>
+  </section>
 
-  <div class="card">
-    <h2>2. Have it open by itself at startup</h2>
-    <p>This downloads a small setup file. Run it on this computer and Dental
-      Comms will open by itself in its own window at sign-in — no tabs, no
-      address bar, and <strong>nothing to press</strong>.</p>
-    <div class="row">
-      <a class="btn" id="dl-edge" href="/setup/shortcut">Set up this computer (Edge)</a>
-      <a class="btn secondary" id="dl-chrome" href="/setup/shortcut?chrome">Prefer Chrome</a>
+  <section class="card">
+    <h2>Open it by itself at startup?</h2>
+    <p>This downloads a small setup file. Run it on this computer and Dental Comms opens by
+      itself in its own window at sign-in, with no tabs, no address bar and nothing to press.</p>
+    <div class="actions">
+      <a class="sme-btn sme-btn--secondary" id="dl-chrome" href="/setup/shortcut?chrome">Use Chrome instead</a>
+      <a class="sme-btn sme-btn--primary" id="dl-edge" href="/setup/shortcut"><span data-icon="download"></span>Set up this computer</a>
     </div>
-    <div id="dlerror" class="note fail" hidden></div>
-    <ol style="margin-top:18px">
-      <li>Download it. The browser will ask whether to keep it — choose
-        <strong>Keep</strong>. It is a text file you can open and read.</li>
-      <li>Double-click <code>Set up Dental Comms</code> in your downloads.
-        Windows may ask whether to run it; choose <strong>Run</strong>.</li>
-      <li>It offers to open Dental Comms straight away, so you can see it
-        worked. After that it opens on its own at every sign-in.</li>
+    <div id="dlerror" class="sme-banner sme-banner--danger" role="alert" hidden>
+      <span data-icon="problem"></span><span id="dlerror-text"></span>
+    </div>
+    <ol>
+      <li>The browser asks whether to keep the file: choose <strong>Keep</strong>. It's a
+        text file you can open and read.</li>
+      <li>Double-click <code>Set up Dental Comms</code> in your downloads. If Windows asks
+        whether to run it, choose <strong>Run</strong>.</li>
+      <li>It offers to open Dental Comms straight away, so you can see it worked. After that
+        it opens on its own at every sign-in.</li>
     </ol>
-    <p class="hint">Do this on each computer that should open Dental Comms
-      automatically. Either button works whichever browser you have — the
-      setup file uses the one you chose if it is installed, and the other if it
-      is not. To undo it, delete the <code>Dental Comms</code> shortcut it puts
-      in your Startup folder.</p>
-    <div class="note">Why a setup file rather than the shortcut itself:
-      browsers refuse to save Windows shortcuts and rename them to
-      <code>.download</code>, so the shortcut has to be made here rather than
-      sent. And why a shortcut rather than the <strong>⧉ Pop out</strong>
-      button: browsers only allow a page to open a window when a person clicks
-      something, so that button can never fire by itself at startup. This
-      shortcut asks the browser directly, so nobody has to press anything.</div>
-  </div>
+    <p class="hint">Either button works whichever browser you have: the file uses the one you
+      chose if it's installed, and the other if not. To undo it, delete the
+      <code>Dental Comms</code> shortcut it puts in your Startup folder.</p>
+    <details>
+      <summary>More details</summary>
+      <p>Why a setup file rather than the shortcut itself: browsers refuse to save Windows
+        shortcuts and rename them to <code>.download</code>, so the shortcut has to be made on
+        this computer. And why not the <strong>Pop out</strong> button: browsers only open a
+        window when a person clicks something, so that button can never work by itself at
+        startup. The shortcut asks the browser directly, so nobody has to press anything.</p>
+    </details>
+  </section>
 
-  <div class="card" id="install-card">
-    <h2>3. Or install it as an app</h2>
-    <p>Same result by a different route — its own icon, its own window. Use
-      whichever you prefer; you do not need both.</p>
-    <div class="row">
-      <button class="btn" id="install" hidden>Install Dental Comms</button>
-      <span id="install-manual" class="hint" style="margin:0">
-        In <strong>Edge</strong>: menu (⋯) → Apps → Install this site as an app.
-        In <strong>Chrome</strong>: menu (⋮) → Cast, save and share → Install
-        page as app.
-      </span>
+  <section class="card" id="install-card">
+    <h2>Or install it as an app?</h2>
+    <p>The same result by a different route: its own icon and its own window. Use whichever
+      you prefer; you don't need both.</p>
+    <div class="actions">
+      <button class="sme-btn sme-btn--secondary" id="install" hidden><span data-icon="download"></span>Install Dental Comms</button>
     </div>
-    <div id="installed" class="note">Dental Comms is already installed on this
-      computer. Its icon opens it in its own window — put a copy of that icon
-      in the <code>shell:startup</code> folder from step 2 and it will open at
-      sign-in too.</div>
-  </div>
+    <p id="install-manual" class="hint">In <strong>Edge</strong>: menu (⋯), then Apps, then
+      Install this site as an app. In <strong>Chrome</strong>: menu (⋮), then Cast, save and
+      share, then Install page as app.</p>
+    <div id="installed" class="done" hidden>
+      <span data-icon="check"></span>
+      <span>Dental Comms is installed on this computer. Its icon opens it in its own window.
+        Put a copy of that icon in the <code>shell:startup</code> folder and it opens at
+        sign-in too.</span>
+    </div>
+  </section>
 
-</div>
+</main>
 
+<script src="icons.js"></script>
 <script>
   const addr = location.origin;
   document.getElementById('addr').textContent = addr;
 
-  document.getElementById('copy').onclick = async (e) => {
+  document.getElementById('copy').onclick = async () => {
+    const label = document.getElementById('copy-text');
     try {
       await navigator.clipboard.writeText(addr);
-      e.target.textContent = 'Copied ✓';
-      setTimeout(() => (e.target.textContent = 'Copy this address'), 1800);
-    } catch { e.target.textContent = 'Select the address above and copy it'; }
+      label.textContent = 'Copied ✓';
+      setTimeout(() => (label.textContent = 'Copy address'), 1800);
+    } catch { label.textContent = 'Select the address above and copy it'; }
   };
 
   // Ask for the setup file once before letting the download start, so that a
@@ -133,11 +144,10 @@
       const res = await fetch(url).catch(() => null);
       if (res && res.ok) return;   // let the normal download proceed
       ev.preventDefault();
-      const box = document.getElementById('dlerror');
-      box.textContent = res
+      document.getElementById('dlerror-text').textContent = res
         ? await res.text()
-        : 'The Dental Comms server could not be reached to build the shortcut.';
-      box.hidden = false;
+        : 'The setup file couldn\'t be made: the main Dental Comms computer didn\'t answer.';
+      document.getElementById('dlerror').hidden = false;
     });
   }
 
@@ -158,12 +168,12 @@
     document.getElementById('install').hidden = true;
   };
   window.addEventListener('appinstalled', () => {
-    document.getElementById('installed').style.display = 'block';
+    document.getElementById('installed').hidden = false;
     document.getElementById('install').hidden = true;
     document.getElementById('install-manual').hidden = true;
   });
   if (matchMedia('(display-mode: standalone)').matches) {
-    document.getElementById('installed').style.display = 'block';
+    document.getElementById('installed').hidden = false;
     document.getElementById('install-manual').hidden = true;
   }
 

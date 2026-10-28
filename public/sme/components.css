@@ -1,0 +1,140 @@
+/* SMEdevelop components (sme-), copied unchanged from the SMEdevelop design
+   system's components/bundle.css, without its preview-only body rule.
+   Every value comes from tokens.css. */
+.sme-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.sme-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+.sme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-4); }
+
+/* ---------- focus: one ring everywhere ---------- */
+.sme-btn:focus-visible, .sme-msg:focus-visible, .sme-tile:focus-visible, .sme-pill:focus-visible,
+.sme-field input:focus-visible, .sme-toast button:focus-visible {
+  outline: 3px solid var(--focus-ring); outline-offset: 2px;
+}
+
+/* ---------- Button ---------- */
+.sme-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--target-min); padding: 0 var(--space-5);
+  font: 600 18px/24px var(--font-sans);
+  border: 2px solid transparent; border-radius: var(--radius-md);
+  cursor: pointer; transition: transform .06s, background-color .12s, border-color .12s;
+}
+.sme-btn svg { width: 22px; height: 22px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sme-btn:active { transform: scale(.97); }
+.sme-btn--primary { background: var(--primary); color: var(--on-primary); }
+.sme-btn--primary:hover { background: var(--primary-hover); }
+.sme-btn--secondary { background: var(--surface-raised); color: var(--primary-ink); border-color: var(--primary); }
+.sme-btn--secondary:hover { background: var(--primary-tint); }
+.sme-btn--quiet { background: var(--surface-sunken); color: var(--ink); }
+.sme-btn--quiet:hover { background: var(--surface-hover); }
+.sme-btn--success { background: var(--success); color: var(--on-success); }
+.sme-btn--danger { background: var(--danger-tint); color: var(--danger-ink); }
+.sme-btn--danger:hover { background: var(--danger); color: var(--on-danger); }
+.sme-btn--big { display: flex; width: 100%; min-height: var(--target-big); font-size: 20px; line-height: 26px; font-weight: 700; }
+.sme-btn[disabled] { background: var(--surface-sunken); color: var(--ink-muted); border-color: transparent; cursor: not-allowed; transform: none; }
+
+/* ---------- MessageButton (colour tiles: Comms presets, Macros deck keys) ---------- */
+.sme-msg {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 112px; padding: var(--space-5) var(--space-4);
+  border: none; border-radius: var(--radius-md);
+  color: #ffffff; font: 700 22px/28px var(--font-sans); text-align: center;
+  cursor: pointer; transition: transform .06s, filter .12s;
+}
+.sme-msg:hover { filter: brightness(1.08); }
+.sme-msg:active { transform: scale(.96); }
+.sme-msg svg { width: 36px; height: 36px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sme-msg .sme-key { position: absolute; top: var(--space-2); left: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radius-sm); background: rgba(255, 255, 255, .22); font: 700 13px/22px var(--font-sans); }
+.sme-msg .sme-urgent { position: absolute; top: var(--space-2); right: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radius-pill); background: #ffffff; color: var(--danger-ink); font: 800 12px/22px var(--font-sans); letter-spacing: .04em; }
+.sme-msg--red { background: var(--msg-red); }
+.sme-msg--green { background: var(--msg-green); }
+.sme-msg--blue { background: var(--msg-blue); }
+.sme-msg--ochre { background: var(--msg-ochre); }
+.sme-msg--plum { background: var(--msg-plum); }
+.sme-msg--spruce { background: var(--msg-spruce); }
+.sme-msg--walnut { background: var(--msg-walnut); }
+.sme-msg--empty { background: transparent; border: 2px dashed var(--line-strong); color: var(--ink-muted); font-weight: 600; font-size: 17px; }
+
+/* ---------- RoomTile (pick-a-room, selectable) ---------- */
+.sme-tile {
+  position: relative; display: block; width: 100%;
+  padding: var(--space-6) var(--space-4); text-align: center;
+  background: var(--surface-raised); color: var(--ink);
+  border: 2px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-soft);
+  font: 700 24px/30px var(--font-sans); cursor: pointer;
+  transition: transform .06s, border-color .12s, box-shadow .12s;
+}
+.sme-tile:hover { border-color: var(--primary); box-shadow: var(--shadow-hover); }
+.sme-tile:active { transform: scale(.97); }
+.sme-tile .sme-sub { display: block; margin-top: 6px; font: 600 15px/20px var(--font-sans); color: var(--ink-muted); }
+.sme-tile .sme-check { position: absolute; top: 10px; left: 12px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--surface-raised); box-sizing: border-box; }
+.sme-tile.is-selected { border-color: var(--primary); background: var(--primary-tint); box-shadow: var(--shadow-hover); }
+.sme-tile.is-selected .sme-check { border-color: var(--primary); background: var(--primary); }
+.sme-tile.is-selected .sme-check::after { content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--on-primary); font-size: 16px; font-weight: 900; }
+.sme-tile.is-everyone { background: var(--sand-100); border-color: var(--sand-300); }
+.sme-tile.is-away { border-style: dashed; color: var(--ink-muted); }
+.sme-tile.is-away .sme-sub { color: var(--warning-ink); font-weight: 700; }
+
+/* ---------- Pill ---------- */
+.sme-pill {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: var(--target-min); padding: 0 18px; box-sizing: border-box;
+  border-radius: var(--radius-pill); border: 2px solid var(--line-strong);
+  background: var(--surface-raised); color: var(--ink);
+  font: 700 16px/20px var(--font-sans); text-decoration: none; cursor: pointer;
+}
+.sme-pill:hover { border-color: var(--primary); color: var(--primary-ink); }
+.sme-pill--active { border-color: var(--primary); background: var(--primary-tint); color: var(--primary-ink); }
+.sme-pill svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- TextField ---------- */
+.sme-field { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.sme-field label { font: 600 15px/20px var(--font-sans); color: var(--ink); }
+.sme-field input {
+  min-height: var(--target-min); padding: 0 var(--space-4); box-sizing: border-box;
+  font: 400 17px/26px var(--font-sans); color: var(--ink); background: var(--surface-raised);
+  border: 2px solid var(--line-strong); border-radius: var(--radius-md);
+}
+.sme-field input::placeholder { color: var(--ink-muted); }
+.sme-field input:focus { border-color: var(--primary); }
+.sme-field .sme-hint { font: 400 15px/20px var(--font-sans); color: var(--ink-muted); }
+.sme-field.is-error input { border-color: var(--danger); }
+.sme-field.is-error .sme-hint { color: var(--danger-ink); font-weight: 600; }
+
+/* ---------- AlertSheet (incoming message) ---------- */
+.sme-alert {
+  max-width: 520px; margin: 0 auto; padding: var(--space-6); box-sizing: border-box; text-align: center;
+  background: var(--surface-raised); border-radius: var(--radius-lg); box-shadow: var(--shadow-sheet);
+  border-top: 12px solid var(--alert-color, var(--primary));
+}
+.sme-alert .sme-from { font: 400 19px/26px var(--font-sans); color: var(--ink-muted); }
+.sme-alert .sme-what { margin: 14px 0 6px; font: 800 44px/50px var(--font-sans); color: var(--ink); }
+.sme-alert .sme-note { font: 400 21px/28px var(--font-sans); }
+.sme-alert .sme-btn { margin-top: var(--space-5); }
+
+/* ---------- Banner ---------- */
+.sme-banner {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+  font: 700 17px/24px var(--font-sans); border: 2px solid transparent;
+}
+.sme-banner svg { width: 22px; height: 22px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sme-banner--danger { background: var(--danger-tint); border-color: var(--danger); color: var(--ink); }
+.sme-banner--danger svg { color: var(--danger-ink); }
+.sme-banner--warning { background: var(--warning-tint); border-color: var(--warning); color: var(--ink); }
+.sme-banner--warning svg { color: var(--warning-ink); }
+.sme-banner--info { background: var(--primary-tint); color: var(--ink); }
+.sme-banner--info svg { color: var(--primary-ink); }
+
+/* ---------- Toast ---------- */
+.sme-toast {
+  display: inline-flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-5); border-radius: var(--radius-pill);
+  background: var(--msg-walnut); color: #ffffff; box-shadow: var(--shadow-sheet);
+  font: 600 17px/24px var(--font-sans);
+}
+.sme-toast--success { background: var(--success); color: var(--on-success); }
+.sme-toast button { min-height: 36px; padding: 0 14px; border: 2px solid currentColor; border-radius: var(--radius-pill); background: transparent; color: inherit; font: 700 15px/20px var(--font-sans); cursor: pointer; }
+
+/* ---------- StepBadge ---------- */
+.sme-step { display: inline-block; padding: 4px 12px; border-radius: var(--radius-pill); background: var(--primary-tint); color: var(--primary-ink); font: 700 13px/18px var(--font-sans); letter-spacing: .04em; text-transform: uppercase; }

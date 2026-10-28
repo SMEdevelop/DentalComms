@@ -1,17 +1,35 @@
 #include "gui.h"
 
 #include <commctrl.h>
+#include <dwmapi.h>
+#include <objidl.h>
 #include <shellapi.h>
 #include <windowsx.h>
 
+#include <algorithm>
+#include <map>
 #include <string>
 #include <thread>
 #include <vector>
 
+// GDI+ uses the min and max macros that NOMINMAX switches off.
+namespace Gdiplus {
+using std::max;
+using std::min;
+}  // namespace Gdiplus
+#include <gdiplus.h>
+
+#include "icons.h"
+#include "theme.h"
 #include "util.h"
+
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "dwmapi.lib")
 
 namespace on {
 namespace {
+
+namespace t = theme;
 
 constexpr UINT WM_TRAY = WM_APP + 1;
 constexpr UINT WM_FIXDONE = WM_APP + 2;   // wParam: Fix, lParam: 0 ok, 1 failed, 2 declined
@@ -27,11 +45,13 @@ enum {
     ID_HIDE,
     ID_PRIMARY,
     ID_CARD,
+    ID_COPY_IP,
     IDM_TRAY_SHOW = 200,
     IDM_TRAY_COPY,
     IDM_TRAY_OPEN,
     IDM_TRAY_STARTUP,
     IDM_TRAY_EXIT,      // 204
+    IDM_TRAY_COPY_IP,
     ID_FIX_BASE = 300,
 };
 
@@ -54,23 +74,12 @@ const wchar_t kOldRunValue[] = L"DentalFlow";
 const wchar_t kMutexName[] = L"Local\\DentalComms.Server";
 const wchar_t kShowMessage[] = L"DentalComms.ShowWindow";
 
-// Sizes in 96-DPI pixels; S() scales them for the monitor.
-constexpr int kWidth = 620;
-constexpr int kMinHeight = 400;
-constexpr int kMargin = 26;
-constexpr int kBtnH = 32;
-constexpr int kIcon = 20;
-constexpr int kIndent = 32;
-
-const COLORREF kInk = RGB(29, 39, 51);
-const COLORREF kMuted = RGB(96, 112, 130);
-const COLORREF kBlue = RGB(28, 126, 214);
-const COLORREF kBlueDark = RGB(16, 88, 160);
-const COLORREF kBlueBg = RGB(234, 243, 252);
-const COLORREF kGreen = RGB(47, 158, 68);
-const COLORREF kAmber = RGB(214, 120, 8);
-const COLORREF kAmberText = RGB(166, 86, 0);
-const COLORREF kGrey = RGB(150, 160, 172);
+// Sizes in 96-DPI pixels; S() scales them for the monitor. Everything else
+// comes from the design system's tokens in theme.h.
+constexpr int kWidth = 640;
+constexpr int kMinHeight = 420;
+constexpr int kPad = t::space6;   // the page's side margins
+constexpr int kRing = 5;          // room around a button for its focus ring
 
 enum Page { PageWelcome, PageChecking, PageReady, PageStatus };
 
@@ -84,9 +93,10 @@ size_t g_revealed = 0;
 long long g_lastDeep = 0;
 bool g_hadAttention = false;
 UINT g_showMsg = 0;
+ULONG_PTR g_gdiplus = 0;
 
-HWND g_btnPrimary = nullptr, g_btnCopy = nullptr, g_btnCard = nullptr,
-     g_btnOpen = nullptr, g_btnHide = nullptr;
+HWND g_btnPrimary = nullptr, g_btnCopy = nullptr, g_btnCopyIp = nullptr,
+     g_btnCard = nullptr, g_btnOpen = nullptr, g_btnHide = nullptr;
 std::vector<HWND> g_rowButtons;   // one per row; nullptr when it has no fix
 std::string g_rowSignature;
 std::string g_fixNote[4];
@@ -96,116 +106,198 @@ NOTIFYICONDATAW g_tray{};
 bool g_trayAdded = false;
 bool g_menuFromRButton = false;
 HICON g_icon = nullptr, g_iconSm = nullptr;
-HFONT g_fontTitle = nullptr, g_fontBody = nullptr, g_fontBold = nullptr,
-      g_fontSmall = nullptr, g_fontAddr = nullptr;
 bool g_reallyQuitting = false;
 
 int g_dpi = 96;
 int S(int px) { return MulDiv(px, g_dpi, 96); }
 
-// ------------------------------------------------------------------- icon
-// Drawn rather than shipped as a .ico, for the same reason the rest of this
-// program has no binary assets: nothing to lose when the folder is moved, and
-// identical on every machine. A blue rounded square with a white speech
-// bubble - Dental Comms is a message board, so it should look like one.
-HICON makeIcon(int size) {
-    HDC screen = GetDC(nullptr);
-    HDC dc = CreateCompatibleDC(screen);
+// Scrolling, only for a screen too short to show a whole page.
+int g_scroll = 0;
+int g_bodyBottom = 0;   // where the action bar starts; body buttons stop there
 
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
-    bi.bmiHeader.biWidth = size;
-    bi.bmiHeader.biHeight = -size;   // top-down
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-    void* bits = nullptr;
-    HBITMAP colour =
-        CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-    if (!colour) {
-        DeleteDC(dc);
-        ReleaseDC(nullptr, screen);
-        return nullptr;
-    }
-    HGDIOBJ oldBmp = SelectObject(dc, colour);
+// ------------------------------------------------------------------ type
+// One font per text style in the design system, with its line height kept
+// alongside: Windows' own line spacing is tighter than the system's.
+struct Font {
+    t::TypeStyle style;
+    HFONT h = nullptr;
+};
+Font g_title{t::title}, g_body{t::body}, g_bodyBold{{17, 26, 600}}, g_label{t::label},
+    g_labelPlain{{15, 20, 400}}, g_overline{t::overline}, g_button{t::button},
+    g_buttonBig{t::buttonBig}, g_address{t::tileLabel}, g_banner{t::banner};
 
-    // Transparent to start with; every pixel we paint gets its alpha set.
-    memset(bits, 0, (size_t)size * size * 4);
+Font* allFonts[] = {&g_title,   &g_body,   &g_bodyBold,  &g_label,   &g_labelPlain,
+                    &g_overline, &g_button, &g_buttonBig, &g_address, &g_banner};
 
-    const int pad = size / 10;
-    const int radius = size / 3;
-    HBRUSH blue = CreateSolidBrush(RGB(28, 126, 214));
-    HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
-    HGDIOBJ oldBrush = SelectObject(dc, blue);
-    RoundRect(dc, pad, pad, size - pad, size - pad, radius, radius);
-
-    HBRUSH white = CreateSolidBrush(RGB(255, 255, 255));
-    SelectObject(dc, white);
-    const int bx = size / 4, by = size / 4;
-    const int bw = size / 2, bh = size / 3;
-    RoundRect(dc, bx, by, bx + bw, by + bh, size / 8, size / 8);
-    // The bubble's tail.
-    POINT tail[3] = {{bx + bw / 4, by + bh - 1},
-                     {bx + bw / 4 + size / 8, by + bh - 1},
-                     {bx + bw / 4, by + bh + size / 6}};
-    Polygon(dc, tail, 3);
-
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(blue);
-    DeleteObject(white);
-
-    // GDI's RoundRect leaves alpha at zero, so everything drawn would be
-    // invisible in a 32-bit icon. Anything that is not still the background
-    // colour is ours, and gets made opaque.
-    auto* px = (BYTE*)bits;
-    for (int i = 0; i < size * size; ++i) {
-        BYTE b = px[i * 4 + 0], g = px[i * 4 + 1], r = px[i * 4 + 2];
-        px[i * 4 + 3] = (b || g || r) ? 255 : 0;
-    }
-
-    SelectObject(dc, oldBmp);
-    HBITMAP mask = CreateBitmap(size, size, 1, 1, nullptr);
-    ICONINFO ii{};
-    ii.fIcon = TRUE;
-    ii.hbmColor = colour;
-    ii.hbmMask = mask;
-    HICON icon = CreateIconIndirect(&ii);
-
-    DeleteObject(colour);
-    DeleteObject(mask);
-    DeleteDC(dc);
-    ReleaseDC(nullptr, screen);
-    return icon;
-}
-
-// ------------------------------------------------------------------ fonts
 void deleteFonts() {
-    for (HFONT* f : {&g_fontTitle, &g_fontBody, &g_fontBold, &g_fontSmall, &g_fontAddr})
-        if (*f) { DeleteObject(*f); *f = nullptr; }
+    for (Font* f : allFonts)
+        if (f->h) { DeleteObject(f->h); f->h = nullptr; }
 }
 
 void makeFonts() {
     deleteFonts();
-    NONCLIENTMETRICSW ncm{sizeof(ncm)};
-    SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
-    LOGFONTW lf = ncm.lfMessageFont;
-    auto make = [&](int px, int weight) {
-        LOGFONTW l = lf;
-        l.lfHeight = -S(px);
-        l.lfWeight = weight;
+    for (Font* f : allFonts) {
+        LOGFONTW l{};
+        wcsncpy_s(l.lfFaceName, L"Segoe UI", _TRUNCATE);
+        l.lfHeight = -S(f->style.size);
+        l.lfWeight = f->style.weight;
         l.lfQuality = CLEARTYPE_QUALITY;
-        return CreateFontIndirectW(&l);
-    };
-    g_fontTitle = make(23, FW_SEMIBOLD);
-    g_fontBody = make(15, FW_NORMAL);
-    g_fontBold = make(15, FW_SEMIBOLD);
-    g_fontSmall = make(13, FW_NORMAL);
-    g_fontAddr = make(21, FW_SEMIBOLD);
+        l.lfCharSet = DEFAULT_CHARSET;
+        f->h = CreateFontIndirectW(&l);
+    }
 }
 
-// ----------------------------------------------------------------- facts
+// The overline style's 0.05em of letter spacing.
+int overlineExtra() { return std::max(1, MulDiv(65, g_dpi, 96 * 100)); }
+
+int textWidth(HDC dc, const Font& f, const std::wstring& s) {
+    HGDIOBJ old = SelectObject(dc, f.h);
+    if (&f == &g_overline) SetTextCharacterExtra(dc, overlineExtra());
+    SIZE sz{};
+    GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &sz);
+    SetTextCharacterExtra(dc, 0);
+    SelectObject(dc, old);
+    return sz.cx;
+}
+
+int textWidth(const Font& f, const std::wstring& s) {
+    HDC dc = GetDC(g_wnd);
+    const int w = textWidth(dc, f, s);
+    ReleaseDC(g_wnd, dc);
+    return w;
+}
+
+// Breaks text into lines that fit `width`, at spaces.
+std::vector<std::wstring> wrap(HDC dc, const Font& f, const std::wstring& s, int width) {
+    std::vector<std::wstring> lines;
+    std::wstring cur;
+    size_t i = 0;
+    while (i <= s.size()) {
+        size_t j = s.find(L' ', i);
+        if (j == std::wstring::npos) j = s.size();
+        const std::wstring word = s.substr(i, j - i);
+        const std::wstring tryLine = cur.empty() ? word : cur + L" " + word;
+        if (!cur.empty() && textWidth(dc, f, tryLine) > width) {
+            lines.push_back(cur);
+            cur = word;
+        } else {
+            cur = tryLine;
+        }
+        i = j + 1;
+    }
+    if (!cur.empty() || lines.empty()) lines.push_back(cur);
+    return lines;
+}
+
+// Draws one line centred in its line box, the way CSS line-height does.
+void drawLine(HDC dc, const Font& f, COLORREF c, int x, int y, const std::wstring& s) {
+    HGDIOBJ old = SelectObject(dc, f.h);
+    if (&f == &g_overline) SetTextCharacterExtra(dc, overlineExtra());
+    TEXTMETRICW tm{};
+    GetTextMetricsW(dc, &tm);
+    SetTextColor(dc, c);
+    SetBkMode(dc, TRANSPARENT);
+    TextOutW(dc, x, y + (S(f.style.line) - tm.tmHeight) / 2, s.c_str(), (int)s.size());
+    SetTextCharacterExtra(dc, 0);
+    SelectObject(dc, old);
+}
+
+// ---------------------------------------------------------------- shapes
+// GDI+ for the shapes, so circles and corners are smooth; GDI for the text,
+// which keeps ClearType.
+Gdiplus::Color gc(COLORREF c, BYTE a = 255) {
+    return Gdiplus::Color(a, GetRValue(c), GetGValue(c), GetBValue(c));
+}
+
+void roundPath(Gdiplus::GraphicsPath& p, float x, float y, float w, float h, float r) {
+    r = std::min(r, std::min(w, h) / 2.f);
+    if (r <= 0.5f) {
+        p.AddRectangle(Gdiplus::RectF(x, y, w, h));
+        return;
+    }
+    const float d = r * 2;
+    p.AddArc(x, y, d, d, 180, 90);
+    p.AddArc(x + w - d, y, d, d, 270, 90);
+    p.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+    p.AddArc(x, y + h - d, d, d, 90, 90);
+    p.CloseFigure();
+}
+
+struct Gfx {
+    Gdiplus::Graphics g;
+    explicit Gfx(HDC dc) : g(dc) {
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+    }
+};
+
+constexpr COLORREF kNone = CLR_INVALID;
+
+// A rounded shape, with an optional outline drawn inside its edge.
+void shape(HDC dc, float x, float y, float w, float h, float radius, COLORREF fill,
+           BYTE alpha = 255, COLORREF border = kNone, float borderW = 2) {
+    Gfx gx(dc);
+    if (fill != kNone) {
+        Gdiplus::GraphicsPath p;
+        roundPath(p, x, y, w, h, radius);
+        Gdiplus::SolidBrush b(gc(fill, alpha));
+        gx.g.FillPath(&b, &p);
+    }
+    if (border != kNone) {
+        const float in = borderW / 2;
+        Gdiplus::GraphicsPath q;
+        roundPath(q, x + in, y + in, w - borderW, h - borderW, radius - in);
+        Gdiplus::Pen pen(gc(border), borderW);
+        gx.g.DrawPath(&pen, &q);
+    }
+}
+
+void shape(HDC dc, const RECT& r, int radius, COLORREF fill, BYTE alpha = 255,
+           COLORREF border = kNone) {
+    shape(dc, (float)r.left, (float)r.top, float(r.right - r.left), float(r.bottom - r.top),
+          (float)radius, fill, alpha, border, (float)S(2));
+}
+
+void circle(HDC dc, int x, int y, int d, COLORREF fill) {
+    Gfx gx(dc);
+    Gdiplus::SolidBrush b(gc(fill));
+    gx.g.FillEllipse(&b, (float)x, (float)y, (float)d, (float)d);
+}
+
+void fillRect(HDC dc, const RECT& r, COLORREF c) {
+    HBRUSH b = CreateSolidBrush(c);
+    FillRect(dc, &r, b);
+    DeleteObject(b);
+}
+
+void hline(HDC dc, int x1, int x2, int y, COLORREF c) {
+    fillRect(dc, RECT{x1, y, x2, y + S(1)}, c);
+}
+
+// shadow-soft: just enough to lift a card off the paper.
+void softShadow(HDC dc, const RECT& r, int radius) {
+    shape(dc, (float)r.left, (float)r.top + S(1), float(r.right - r.left),
+          float(r.bottom - r.top), (float)radius, t::ink, 12);
+    for (int i = 1; i <= 3; ++i)
+        shape(dc, float(r.left - S(i) + S(1)), float(r.top + S(2)),
+              float(r.right - r.left + 2 * S(i) - 2 * S(1)),
+              float(r.bottom - r.top + S(i)), float(radius + S(i)), t::ink, 5);
+}
+
+// A raised card: cream, a 2px outline and shadow-soft.
+void cardBg(HDC dc, const RECT& r) {
+    softShadow(dc, r, S(t::radiusMd));
+    shape(dc, r, S(t::radiusMd), t::surfaceRaised, 255, t::line);
+}
+
+// ---------------------------------------------------------------- facts
 std::wstring staffAddressW() { return widen(staffAddress(g_facts)); }
+
+// The number-based address, or empty when it would only repeat the other.
+std::wstring ipAddressW() {
+    const std::string ip = staffIpAddress(g_facts);
+    return ip == staffAddress(g_facts) ? std::wstring() : widen(ip);
+}
 
 std::wstring localAddressW() {
     return L"http://localhost:" + std::to_wstring(g_facts.port);
@@ -229,6 +321,71 @@ void copyText(const std::wstring& w) {
 
 void openUrl(const std::wstring& url) {
     ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+// ------------------------------------------------------------------- icon
+// Used only if the icon built into the exe can't be loaded: a denim rounded
+// square with a cream speech bubble, like the real one.
+HICON makeIcon(int size) {
+    HDC screen = GetDC(nullptr);
+    HDC dc = CreateCompatibleDC(screen);
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = size;
+    bi.bmiHeader.biHeight = -size;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP colour = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!colour) {
+        DeleteDC(dc);
+        ReleaseDC(nullptr, screen);
+        return nullptr;
+    }
+    HGDIOBJ oldBmp = SelectObject(dc, colour);
+    memset(bits, 0, (size_t)size * size * 4);
+    HBRUSH denim = CreateSolidBrush(t::primary);
+    HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
+    HGDIOBJ oldBrush = SelectObject(dc, denim);
+    const int pad = size / 10;
+    RoundRect(dc, pad, pad, size - pad, size - pad, size / 3, size / 3);
+    HBRUSH cream = CreateSolidBrush(t::surfaceRaised);
+    SelectObject(dc, cream);
+    const int bx = size / 4, by = size / 4, bw = size / 2, bh = size / 3;
+    RoundRect(dc, bx, by, bx + bw, by + bh, size / 8, size / 8);
+    POINT tail[3] = {{bx + bw / 4, by + bh - 1},
+                     {bx + bw / 4 + size / 8, by + bh - 1},
+                     {bx + bw / 4, by + bh + size / 6}};
+    Polygon(dc, tail, 3);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(denim);
+    DeleteObject(cream);
+    auto* px = (BYTE*)bits;
+    for (int i = 0; i < size * size; ++i)
+        px[i * 4 + 3] = (px[i * 4] || px[i * 4 + 1] || px[i * 4 + 2]) ? 255 : 0;
+    SelectObject(dc, oldBmp);
+    HBITMAP mask = CreateBitmap(size, size, 1, 1, nullptr);
+    ICONINFO ii{};
+    ii.fIcon = TRUE;
+    ii.hbmColor = colour;
+    ii.hbmMask = mask;
+    HICON icon = CreateIconIndirect(&ii);
+    DeleteObject(colour);
+    DeleteObject(mask);
+    DeleteDC(dc);
+    ReleaseDC(nullptr, screen);
+    return icon;
+}
+
+// The icon built into DentalComms.exe (app.rc), which Explorer and the Start
+// menu already show, so the window and the tray match them.
+HICON appIcon(int size) {
+    if (HICON h = (HICON)LoadImageW(g_inst, MAKEINTRESOURCEW(1), IMAGE_ICON, size,
+                                    size, LR_DEFAULTCOLOR))
+        return h;
+    return makeIcon(size);
 }
 
 // ------------------------------------------------------------------- tray
@@ -282,136 +439,341 @@ void notify(const std::wstring& title, const std::wstring& text) {
     Shell_NotifyIconW(NIM_MODIFY, &d);
 }
 
-// ---------------------------------------------------------------- layout
-// One walk down the page serves both painting and placing the buttons, so the
-// two can never disagree about where anything is.
-struct Walk {
-    HDC dc;
-    bool paint;
-    int left, right, y;
+// --------------------------------------------------------------- buttons
+// The design system's Button, drawn by hand: primary (denim, one per screen),
+// secondary (denim outline) and quiet (sand). The window each one lives in is
+// a little bigger than the button itself, so the focus ring has room.
+enum class Look { Primary, Secondary, Quiet };
 
-    int measure(HFONT f, const std::wstring& s, int l) const {
-        RECT rc{l, 0, right, 0};
-        SelectObject(dc, f);
-        DrawTextW(dc, s.c_str(), -1, &rc, DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
-        return rc.bottom;
+struct Btn {
+    Look look = Look::Quiet;
+    bool big = false;           // the 64px main action
+    COLORREF surface = t::surface;   // what it sits on
+    bool hasIcon = false;
+    Icon icon = Icon::Check;
+    int minWidth = 0;           // so "Copied" doesn't shrink "Copy address"
+    bool hover = false;
+};
+std::map<HWND, Btn> g_btn;
+
+const Font& buttonFont(const Btn& b) { return b.big ? g_buttonBig : g_button; }
+
+// The button's own width (not counting the ring margin).
+int buttonWidth(HWND b) {
+    auto it = g_btn.find(b);
+    if (it == g_btn.end()) return S(120);
+    wchar_t text[128] = {0};
+    GetWindowTextW(b, text, 128);
+    int w = textWidth(buttonFont(it->second), text) + 2 * S(t::space5);
+    if (it->second.hasIcon) w += S(22) + S(t::space2);
+    return std::max(w, it->second.minWidth);
+}
+
+LRESULT CALLBACK buttonProc(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
+    switch (msg) {
+        case WM_MOUSEMOVE: {
+            auto it = g_btn.find(h);
+            if (it != g_btn.end() && !it->second.hover) {
+                it->second.hover = true;
+                TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, h, 0};
+                TrackMouseEvent(&tme);
+                InvalidateRect(h, nullptr, FALSE);
+            }
+            break;
+        }
+        case WM_MOUSELEAVE: {
+            auto it = g_btn.find(h);
+            if (it != g_btn.end()) it->second.hover = false;
+            InvalidateRect(h, nullptr, FALSE);
+            break;
+        }
+        case WM_SETCURSOR:
+            if (IsWindowEnabled(h)) {
+                SetCursor(LoadCursorW(nullptr, IDC_HAND));
+                return TRUE;
+            }
+            break;
+        case WM_ERASEBKGND:
+            return 1;
+        case WM_NCDESTROY:
+            RemoveWindowSubclass(h, buttonProc, 1);
+            g_btn.erase(h);
+            break;
+    }
+    return DefSubclassProc(h, msg, wp, lp);
+}
+
+void drawButton(const DRAWITEMSTRUCT* di) {
+    auto it = g_btn.find(di->hwndItem);
+    if (it == g_btn.end()) return;
+    const Btn& info = it->second;
+    const int W = di->rcItem.right - di->rcItem.left;
+    const int H = di->rcItem.bottom - di->rcItem.top;
+    const bool disabled = (di->itemState & ODS_DISABLED) != 0;
+    const bool pressed = (di->itemState & ODS_SELECTED) != 0 && !disabled;
+    const bool focus = (di->itemState & ODS_FOCUS) && !(di->itemState & ODS_NOFOCUSRECT);
+    const bool hover = info.hover && !disabled;
+
+    COLORREF fill = t::surfaceSunken, ink = t::ink, border = kNone;
+    if (disabled) {
+        fill = t::surfaceSunken;
+        ink = t::inkMuted;
+    } else {
+        switch (info.look) {
+            case Look::Primary:
+                fill = hover || pressed ? t::primaryHover : t::primary;
+                ink = t::onPrimary;
+                break;
+            case Look::Secondary:
+                fill = hover || pressed ? t::primaryTint : t::surfaceRaised;
+                border = t::primary;
+                ink = t::primaryInk;
+                break;
+            case Look::Quiet:
+                fill = hover || pressed ? t::surfaceHover : t::surfaceSunken;
+                ink = t::ink;
+                break;
+        }
     }
 
-    void text(HFONT f, COLORREF c, const std::wstring& s, int indent = 0,
-              int after = 8) {
+    HDC mem = CreateCompatibleDC(di->hDC);
+    HBITMAP bmp = CreateCompatibleBitmap(di->hDC, W, H);
+    HGDIOBJ oldBmp = SelectObject(mem, bmp);
+    fillRect(mem, RECT{0, 0, W, H}, info.surface);
+
+    // The button proper, inside the ring margin; a press shrinks it to 97%.
+    float x = (float)S(kRing), y = (float)S(kRing), w = float(W - 2 * S(kRing)),
+          h = float(H - 2 * S(kRing));
+    if (pressed) {
+        x += w * 0.015f;
+        y += h * 0.015f;
+        w *= 0.97f;
+        h *= 0.97f;
+    }
+    shape(mem, x, y, w, h, (float)S(t::radiusMd), fill, 255, border, (float)S(2));
+    if (focus) {
+        // focus-ring: solid, 3px, with a 2px gap.
+        const float gap = (float)S(2), ring = (float)S(3);
+        shape(mem, (float)S(kRing) - gap - ring, (float)S(kRing) - gap - ring,
+              float(W - 2 * S(kRing)) + 2 * (gap + ring), float(H - 2 * S(kRing)) + 2 * (gap + ring),
+              (float)S(t::radiusMd) + gap + ring, kNone, 255, t::focusRing, ring);
+    }
+
+    wchar_t text[128] = {0};
+    GetWindowTextW(di->hwndItem, text, 128);
+    const Font& f = buttonFont(info);
+    const int tw = textWidth(mem, f, text);
+    const int iconW = info.hasIcon ? S(22) + S(t::space2) : 0;
+    int cx = (W - (tw + iconW)) / 2;
+    const int lineTop = (H - S(f.style.line)) / 2;
+    if (info.hasIcon) {
+        drawIcon(mem, info.icon, cx, (H - S(22)) / 2, S(22), ink);
+        cx += iconW;
+    }
+    drawLine(mem, f, ink, cx, lineTop, text);
+
+    BitBlt(di->hDC, di->rcItem.left, di->rcItem.top, W, H, mem, 0, 0, SRCCOPY);
+    SelectObject(mem, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+}
+
+HWND makeButton(int id, const wchar_t* text, Look look, bool big = false) {
+    HWND b = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_TABSTOP | BS_OWNERDRAW, 0, 0,
+                             10, 10, g_wnd, (HMENU)(INT_PTR)id, g_inst, nullptr);
+    Btn info;
+    info.look = look;
+    info.big = big;
+    g_btn[b] = info;
+    SetWindowSubclass(b, buttonProc, 1, 0);
+    return b;
+}
+
+void setIcon(HWND b, Icon icon) {
+    auto it = g_btn.find(b);
+    if (it == g_btn.end()) return;
+    if (!it->second.hasIcon || it->second.icon != icon) {
+        it->second.hasIcon = true;
+        it->second.icon = icon;
+        InvalidateRect(b, nullptr, FALSE);
+    }
+}
+
+// Puts a button's visible shape at x, y, w, h and tells it what it sits on.
+void place(HWND b, int x, int y, int w, int h, COLORREF surface) {
+    auto it = g_btn.find(b);
+    if (it != g_btn.end() && it->second.surface != surface) {
+        it->second.surface = surface;
+        InvalidateRect(b, nullptr, FALSE);
+    }
+    const int m = S(kRing);
+    MoveWindow(b, x - m, y - m, w + 2 * m, h + 2 * m, TRUE);
+}
+
+// A button in the scrolling part of the page: hidden while any of it would
+// be under the action bar or above the top.
+void placeBody(HWND b, int x, int y, int w, int h, COLORREF surface) {
+    place(b, x, y, w, h, surface);
+    const bool visible = y >= 0 && y + h <= g_bodyBottom;
+    ShowWindow(b, visible ? SW_SHOW : SW_HIDE);
+}
+
+// Only when it changes: setting a button's text repaints it, and doing that
+// on every refresh would make the buttons flicker.
+void setText(HWND b, const std::wstring& text) {
+    wchar_t cur[160] = {0};
+    GetWindowTextW(b, cur, 160);
+    if (text != cur) SetWindowTextW(b, text.c_str());
+}
+
+// ---------------------------------------------------------------- layout
+// One walk down the page serves measuring, painting and placing the buttons,
+// so they can never disagree about where anything is.
+struct Walk {
+    enum Mode { Place, Paint, Measure };
+    HDC dc;
+    Mode mode;
+    int left, right, y;
+
+    bool painting() const { return mode == Paint; }
+    bool placing() const { return mode == Place; }
+
+    // Wrapped text, `after` px of space below it.
+    void text(const Font& f, COLORREF c, const std::wstring& s, int indent = 0,
+              int after = 0) {
         const int l = left + indent;
-        const int h = measure(f, s, l);
-        if (paint) {
-            RECT rc{l, y, right, y + h};
-            SelectObject(dc, f);
-            SetTextColor(dc, c);
-            DrawTextW(dc, s.c_str(), -1, &rc, DT_WORDBREAK | DT_NOPREFIX);
+        const auto lines = wrap(dc, f, s, right - l);
+        for (const auto& ln : lines) {
+            if (painting()) drawLine(dc, f, c, l, y, ln);
+            y += S(f.style.line);
         }
-        y += h + S(after);
+        y += S(after);
     }
 };
 
-int textWidth(HFONT f, const std::wstring& s) {
-    HDC dc = GetDC(g_wnd);
-    HGDIOBJ old = SelectObject(dc, f);
-    SIZE sz{};
-    GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &sz);
-    SelectObject(dc, old);
-    ReleaseDC(g_wnd, dc);
-    return sz.cx;
+// Measures the body, draws the background behind it, then runs it for real.
+template <class Bg, class Body>
+void box(Walk& w, int padX, int padY, Bg bg, Body body) {
+    Walk m{w.dc, Walk::Measure, w.left + S(padX), w.right - S(padX), w.y + S(padY)};
+    body(m);
+    const int h = (m.y - w.y) + S(padY);
+    if (w.painting()) bg(RECT{w.left, w.y, w.right, w.y + h});
+    Walk in{w.dc, w.mode, w.left + S(padX), w.right - S(padX), w.y + S(padY)};
+    body(in);
+    w.y += h;
 }
 
-int buttonWidth(HWND b) {
-    wchar_t text[128] = {0};
-    GetWindowTextW(b, text, 128);
-    const int w = textWidth(g_fontBody, text) + S(36);
-    return w < S(110) ? S(110) : w;
+template <class Body>
+void card(Walk& w, int padY, Body body) {
+    box(w, t::space5, padY, [&](const RECT& r) { cardBg(w.dc, r); }, body);
 }
 
-void roundBox(HDC dc, const RECT& r, COLORREF fill) {
-    HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, 1, fill);
-    HGDIOBJ ob = SelectObject(dc, b), op = SelectObject(dc, p);
-    RoundRect(dc, r.left, r.top, r.right, r.bottom, S(14), S(14));
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(b);
-    DeleteObject(p);
+// A section kicker in the overline style: "STAFF COMPUTERS GO TO".
+void kicker(Walk& w, const std::wstring& s) {
+    w.text(g_overline, t::inkMuted, s, 0, t::space2);
 }
 
-void drawStateIcon(HDC dc, int x, int y, CheckState s) {
-    const int d = S(kIcon);
-    const COLORREF fill = s == CheckState::Ok         ? kGreen
-                          : s == CheckState::NeedsYou ? kAmber
-                          : s == CheckState::Note     ? kBlue
-                                                      : kGrey;
-    HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, 1, fill);
-    HGDIOBJ ob = SelectObject(dc, b), op = SelectObject(dc, p);
-    Ellipse(dc, x, y, x + d, y + d);
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(b);
-    DeleteObject(p);
+// The design system's Banner: an icon and one sentence.
+enum class BannerKind { Info, Warning };
+void banner(Walk& w, BannerKind kind, const std::wstring& s) {
+    const COLORREF bg = kind == BannerKind::Info ? t::primaryTint : t::warningTint;
+    const COLORREF edge = kind == BannerKind::Info ? kNone : t::warning;
+    const COLORREF iconInk = kind == BannerKind::Info ? t::primaryInk : t::warningInk;
+    box(
+        w, t::space4, t::space3,
+        [&](const RECT& r) { shape(w.dc, r, S(t::radiusMd), bg, 255, edge); },
+        [&](Walk& c) {
+            const int top = c.y;
+            const int indent = S(22) + S(t::space3);
+            c.text(g_banner, t::ink, s, indent, 0);
+            if (c.painting())
+                drawIcon(c.dc, kind == BannerKind::Info ? Icon::Info : Icon::Alert, c.left,
+                         top + (S(t::banner.line) - S(22)) / 2, S(22), iconInk);
+        });
+}
 
-    if (s == CheckState::Ok) {
-        // A drawn tick, not a character: the font on a given PC may not have
-        // one, and a box where the tick should be reads as a failure.
-        HPEN w = CreatePen(PS_SOLID, S(2) < 2 ? 2 : S(2), RGB(255, 255, 255));
-        HGDIOBJ old = SelectObject(dc, w);
-        POINT pts[3] = {{x + d * 27 / 100, y + d * 52 / 100},
-                        {x + d * 43 / 100, y + d * 68 / 100},
-                        {x + d * 73 / 100, y + d * 34 / 100}};
-        Polyline(dc, pts, 3);
-        SelectObject(dc, old);
-        DeleteObject(w);
-        return;
+// The top of every page: an optional step badge, the heading, and one line
+// of help. `status` adds a label beside the heading on the status page.
+struct Status {
+    std::wstring text;
+    Icon icon;
+    COLORREF bg, iconInk, ink;
+};
+void header(Walk& w, int step, const std::wstring& title, const std::wstring& help,
+            const Status* status = nullptr, const Font* helpFont = nullptr) {
+    w.y += S(28);
+    if (step) {
+        // StepBadge: "STEP 1 OF 3".
+        const std::wstring s = L"STEP " + std::to_wstring(step) + L" OF 3";
+        const int bw = textWidth(g_overline, s) + 2 * S(t::space3);
+        const int bh = S(t::overline.line) + 2 * S(t::space1);
+        if (w.painting()) {
+            shape(w.dc, RECT{w.left, w.y, w.left + bw, w.y + bh}, bh / 2, t::primaryTint);
+            drawLine(w.dc, g_overline, t::primaryInk, w.left + S(t::space3), w.y + S(t::space1), s);
+        }
+        w.y += bh + S(t::space3);
     }
-    const wchar_t* mark = s == CheckState::NeedsYou ? L"!"
-                          : s == CheckState::Note   ? L"i"
-                                                    : L"…";
-    RECT r{x, y, x + d, y + d};
-    SelectObject(dc, g_fontBold);
-    SetTextColor(dc, RGB(255, 255, 255));
-    DrawTextW(dc, mark, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-}
-
-void noteBox(Walk& w, const std::wstring& text) {
-    const int pad = S(12);
-    const int h = w.measure(g_fontBody, text, w.left + pad + S(kIndent)) + pad * 2;
-    if (w.paint) {
-        RECT box{w.left, w.y, w.right, w.y + h};
-        roundBox(w.dc, box, kBlueBg);
-        drawStateIcon(w.dc, w.left + pad, w.y + pad, CheckState::Note);
-        RECT tr{w.left + pad + S(kIndent), w.y + pad, w.right - pad, w.y + h - pad};
-        SelectObject(w.dc, g_fontBody);
-        SetTextColor(w.dc, kInk);
-        DrawTextW(w.dc, text.c_str(), -1, &tr, DT_WORDBREAK | DT_NOPREFIX);
+    Walk tw = w;
+    int sw = 0;
+    const int sh = S(32);
+    if (status) {
+        sw = S(t::space3) + S(18) + S(t::space2) + textWidth(g_label, status->text) +
+             S(t::space3) + S(2);
+        tw.right -= sw + S(t::space4);
     }
-    w.y += h + S(16);
-}
-
-void addressBox(Walk& w, const std::wstring& addr) {
-    const int h = S(54);
-    if (w.paint) {
-        RECT box{w.left, w.y, w.right, w.y + h};
-        roundBox(w.dc, box, kBlueBg);
-        RECT tr{w.left + S(18), w.y, w.right - S(12), w.y + h};
-        SelectObject(w.dc, g_fontAddr);
-        SetTextColor(w.dc, kBlueDark);
-        DrawTextW(w.dc, addr.c_str(), -1, &tr,
-                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    const int titleTop = w.y;
+    tw.text(g_title, t::ink, title, 0, 0);
+    if (status && w.painting()) {
+        const int y = titleTop + (S(t::title.line) - sh) / 2;
+        const int x = w.right - sw;
+        shape(w.dc, RECT{x, y, w.right, y + sh}, sh / 2, status->bg);
+        drawIcon(w.dc, status->icon, x + S(t::space3), y + (sh - S(18)) / 2, S(18),
+                 status->iconInk);
+        drawLine(w.dc, g_label, status->ink, x + S(t::space3) + S(18) + S(t::space2),
+                 y + (sh - S(t::label.line)) / 2, status->text);
     }
-    w.y += h + S(12);
+    w.y = tw.y;
+    if (!help.empty()) {
+        w.y += S(t::space1);
+        w.text(helpFont ? *helpFont : g_body, t::inkMuted, help, 0, 0);
+    }
+    w.y += S(t::space5);
 }
 
-// Copy / Print a setup card / Open, side by side from the left at `y`.
-void placeActionRow(int left, int y) {
-    int x = left;
-    for (HWND b : {g_btnCopy, g_btnCard, g_btnOpen}) {
-        const int bw = buttonWidth(b);
-        MoveWindow(b, x, y, bw, S(kBtnH), TRUE);
-        x += bw + S(8);
+// A round icon with a heading and a sentence beside it (the Welcome list).
+void feature(Walk& c, Icon icon, const std::wstring& title, const std::wstring& body,
+             bool divider) {
+    c.y += S(t::space4);
+    const int top = c.y, d = S(44), indent = d + S(t::space4);
+    if (c.painting()) {
+        circle(c.dc, c.left, top, d, t::sand100);
+        drawIcon(c.dc, icon, c.left + (d - S(22)) / 2, top + (d - S(22)) / 2, S(22), t::clay);
+    }
+    c.text(g_bodyBold, t::ink, title, indent, 0);
+    c.text(g_body, t::inkMuted, body, indent, 0);
+    c.y = std::max(c.y, top + d) + S(t::space4);
+    if (divider && c.painting()) hline(c.dc, c.left + indent, c.right, c.y, t::line);
+}
+
+void stateIcon(HDC dc, int x, int y, int d, CheckState s) {
+    const int i = S(18), o = (d - i) / 2;
+    switch (s) {
+        case CheckState::Ok:
+            circle(dc, x, y, d, t::successTint);
+            drawIcon(dc, Icon::Check, x + o, y + o, i, t::success);
+            break;
+        case CheckState::NeedsYou:
+            circle(dc, x, y, d, t::warningTint);
+            drawIcon(dc, Icon::Alert, x + o, y + o - S(1), i, t::warningInk);
+            break;
+        case CheckState::Note:
+            circle(dc, x, y, d, t::primaryTint);
+            drawIcon(dc, Icon::Info, x + o, y + o, i, t::primaryInk);
+            break;
+        case CheckState::Working:
+            circle(dc, x, y, d, t::surfaceSunken);
+            drawIcon(dc, Icon::More, x + o, y + o, i, t::inkMuted);
+            break;
     }
 }
 
@@ -423,136 +785,240 @@ void hideRowButtons() {
 // Lists the first `count` rows. With `skipOk`, only the ones that are not
 // already green - what is left to look at.
 void rows(Walk& w, size_t count, bool skipOk) {
+    bool first = true;
     for (size_t i = 0; i < g_checks.size(); ++i) {
         const Check& c = g_checks[i];
         HWND btn = i < g_rowButtons.size() ? g_rowButtons[i] : nullptr;
-        const bool show =
-            i < count && (!skipOk || c.state != CheckState::Ok);
+        const bool show = i < count && (!skipOk || c.state != CheckState::Ok);
         if (!show) {
-            if (btn && !w.paint) ShowWindow(btn, SW_HIDE);
+            if (btn && w.placing()) ShowWindow(btn, SW_HIDE);
             continue;
         }
-        if (w.paint) drawStateIcon(w.dc, w.left, w.y, c.state);
-        const int indent = S(kIndent);
-        w.text(g_fontBold, kInk, widen(c.text), indent, c.help.empty() ? 12 : 2);
-        if (!c.help.empty())
-            w.text(g_fontBody, kMuted, widen(c.help), indent, btn ? 8 : 12);
+        if (!first && w.painting()) hline(w.dc, w.left + S(48), w.right, w.y, t::line);
+        first = false;
+        w.y += S(10);
+        const int top = w.y, d = S(32), indent = S(48);
+        if (w.painting()) stateIcon(w.dc, w.left, top + (S(26) - d) / 2 + S(1), d, c.state);
+        w.text(g_bodyBold, t::ink, widen(c.text), indent, 0);
+        if (!c.help.empty()) w.text(g_body, t::inkMuted, widen(c.help), indent, 0);
         if (btn) {
-            if (!w.paint) {
-                MoveWindow(btn, w.left + indent, w.y, buttonWidth(btn), S(kBtnH), TRUE);
-                ShowWindow(btn, SW_SHOW);
-            }
-            w.y += S(kBtnH) + S(8);
+            w.y += S(t::space3);
+            if (w.placing())
+                placeBody(btn, w.left + indent, w.y, buttonWidth(btn), S(t::targetMin),
+                          t::surfaceRaised);
+            w.y += S(t::targetMin);
         }
         const std::string& note = g_fixNote[(int)c.fix];
-        if (c.fix != Fix::None && !note.empty())
-            w.text(g_fontSmall, kAmberText, widen(note), indent, 8);
-        if (btn) w.y += S(6);
+        if (c.fix != Fix::None && !note.empty()) {
+            w.y += S(t::space2);
+            w.text(g_body, t::warningInk, widen(note), indent, 0);
+        }
+        w.y = std::max(w.y, top + d) + S(10);
     }
 }
 
-// Lays out the current page. Paints when `paint` is set, otherwise moves the
-// buttons into place. Returns how far down the content reaches.
-int layout(HDC dc, bool paint) {
+bool anyRows(size_t count, bool skipOk) {
+    for (size_t i = 0; i < g_checks.size() && i < count; ++i)
+        if (!skipOk || g_checks[i].state != CheckState::Ok) return true;
+    return false;
+}
+
+// One address with its own Copy button, on the light blue panel.
+void addressLine(Walk& c, const std::wstring& caption, const std::wstring& addr, HWND copy,
+                 bool divider) {
+    c.y += S(t::space4);
+    const int top = c.y;
+    const int bw = buttonWidth(copy);
+    Walk tw = c;
+    tw.right = c.right - bw - S(t::space4);
+    tw.text(g_overline, t::primaryInk, caption, 0, t::space1);
+    // An address broken across two lines gets typed with a space in it, so a
+    // long one is set smaller rather than wrapped.
+    const Font& f = textWidth(g_address, addr) <= tw.right - tw.left ? g_address : g_bodyBold;
+    if (c.painting()) drawLine(c.dc, f, t::primaryInk, tw.left, tw.y, addr);
+    tw.y += S(f.style.line);
+    const int h = tw.y - top;
+    if (c.placing())
+        placeBody(copy, c.right - bw, top + (h - S(t::targetMin)) / 2, bw, S(t::targetMin),
+                  t::sky100);
+    c.y = std::max(tw.y, top + S(t::targetMin)) + S(t::space4);
+    if (divider && c.painting()) hline(c.dc, c.left, c.right, c.y, t::sky300);
+}
+
+// The addresses staff type in: the computer's name, and its number for any
+// computer that can't find it by name.
+void addressPanel(Walk& w) {
+    const std::wstring name = staffAddressW(), ip = ipAddressW();
+    box(
+        w, t::space5, 0,
+        [&](const RECT& r) { shape(w.dc, r, S(t::radiusMd), t::sky100); },
+        [&](Walk& c) {
+            addressLine(c, ip.empty() ? L"ADDRESS" : L"COMPUTER NAME", name, g_btnCopy,
+                        !ip.empty());
+            if (!ip.empty()) addressLine(c, L"IP ADDRESS", ip, g_btnCopyIp, false);
+        });
+    if (!ip.empty()) {
+        w.y += S(t::space3);
+        w.text(g_body, t::inkMuted,
+               L"Either one works. If the name doesn't open, use the IP address.",
+               0, 0);
+    }
+}
+
+// Print setup card / Open Dental Comms, side by side in the page.
+void actionRow(Walk& w, bool withCard) {
+    if (w.placing()) {
+        int x = w.left;
+        if (!withCard) ShowWindow(g_btnCard, SW_HIDE);
+        for (HWND b : {g_btnCard, g_btnOpen}) {
+            if (b == g_btnCard && !withCard) continue;
+            const int bw = buttonWidth(b);
+            placeBody(b, x, w.y, bw, S(t::targetMin), t::surface);
+            x += bw + S(t::space3);
+        }
+    }
+    w.y += S(t::targetMin);
+}
+
+bool bigFooter() { return g_page != PageStatus; }
+
+int footerHeight() {
+    return (bigFooter() ? S(t::targetBig) : S(t::targetMin)) + 2 * S(t::space4);
+}
+
+// Lays out the current page. Paints, places the buttons, or only measures,
+// depending on the walk's mode. Returns how far down the content reaches.
+int layout(HDC dc, Walk::Mode mode) {
     RECT rc;
     GetClientRect(g_wnd, &rc);
-    Walk w{dc, paint, S(kMargin), rc.right - S(kMargin), S(22)};
+    const int scroll = mode == Walk::Measure ? 0 : g_scroll;
+    Walk w{dc, mode, S(kPad), rc.right - S(kPad), -scroll};
     const std::wstring addr = staffAddressW();
     const bool attention = needsAttention(g_checks);
+    const bool placing = mode == Walk::Place;
+    g_bodyBottom = rc.bottom - footerHeight();
 
     switch (g_page) {
         case PageWelcome:
-            if (!paint) hideRowButtons();
-            w.text(g_fontTitle, kInk, L"Welcome to Dental Comms", 0, 10);
-            w.text(g_fontBody, kInk,
-                   L"This computer will pass messages between the rooms in your "
-                   L"office. Setup takes about 30 seconds, and there's nothing to "
-                   L"type.",
-                   0, 18);
-            noteBox(w, L"Windows may ask if Dental Comms can use your network. "
-                       L"Click Allow.");
-            w.text(g_fontSmall, kMuted,
-                   L"For everyday messages only. Keep your usual way of calling "
-                   L"for help for anything urgent.",
-                   0, 0);
+            if (placing) hideRowButtons();
+            header(w, 1, L"Welcome to Dental Comms",
+                   L"Quick messages between the rooms in your office. Setup takes about "
+                   L"30 seconds, and there's nothing to type.");
+            card(w, 0, [&](Walk& c) {
+                feature(c, Icon::Send, L"Message any room", L"Tap a room, then tap a message.",
+                        true);
+                feature(c, Icon::Bell, L"Nobody misses it",
+                        L"A chime, and the message stays on their screen until someone taps "
+                        L"Got it.",
+                        true);
+                feature(c, Icon::Globe, L"Nothing to install anywhere else",
+                        L"Other computers just open a web page.", false);
+            });
+            w.y += S(t::space4);
+            banner(w, BannerKind::Info,
+                   L"Windows may ask if Dental Comms can use your network. Click Allow.");
+            w.y += S(t::space4);
+            w.text(g_body, t::inkMuted,
+                   L"For everyday messages only. Keep your usual way of calling for help "
+                   L"for anything urgent.");
+            w.y += S(t::space5);
             break;
 
         case PageChecking: {
             const bool done = g_revealed >= g_checks.size();
-            w.text(g_fontTitle, kInk,
-                   !done       ? L"Checking this computer…"
-                   : attention ? L"Almost there"
-                               : L"Everything looks good",
-                   0, 4);
-            w.text(g_fontBody, kMuted,
-                   !done      ? L"This only takes a moment."
-                   : attention ? L"Put right the items marked !, or carry on and "
-                                 L"come back to them. They stay in this window."
-                               : L"Here's what was checked.",
-                   0, 18);
-            rows(w, g_revealed, false);
+            header(w, 2, L"Is this computer ready?",
+                   !done       ? L"Checking a few things. This only takes a moment."
+                   : attention ? L"Some things need you. Fix them here, or carry on and come "
+                                 L"back to them: they stay in this window."
+                               : L"Yes. Everything Dental Comms needs is in place.");
+            if (anyRows(g_revealed, false))
+                card(w, t::space1, [&](Walk& c) { rows(c, g_revealed, false); });
+            else if (placing)
+                hideRowButtons();
+            w.y += S(t::space5);
             break;
         }
 
         case PageReady:
             if (!addr.empty()) {
-                if (!paint) hideRowButtons();
-                w.text(g_fontTitle, kInk, L"You're all set", 0, 10);
-                w.text(g_fontBody, kInk,
-                       L"On every other computer, open a web browser and go to:", 0, 10);
-                addressBox(w, addr);
-                if (!paint) placeActionRow(w.left, w.y);
-                w.y += S(kBtnH) + S(18);
-                w.text(g_fontSmall, kMuted,
-                       L"Tablets and phones can scan the code on the setup card.", 0, 4);
-                w.text(g_fontSmall, kMuted,
-                       L"You can close this window. Dental Comms keeps running in the "
-                       L"corner by the clock.",
-                       0, 0);
+                if (placing) hideRowButtons();
+                header(w, 3, L"How do staff computers connect?",
+                       L"On each staff computer, open a web browser and go to one of these "
+                       L"addresses.");
+                addressPanel(w);
+                w.y += S(t::space5);
+                actionRow(w, true);
+                w.y += S(t::space4);
+                w.text(g_body, t::inkMuted,
+                       L"Tablets and phones can scan the QR code on the setup card. You can "
+                       L"close this window: Dental Comms keeps running by the clock.");
+                w.y += S(t::space5);
             } else {
-                w.text(g_fontTitle, kInk, L"Almost there", 0, 10);
-                w.text(g_fontBody, kInk,
-                       L"Other computers can't reach this one yet. Put right the "
-                       L"items below, and the address to use will appear here as "
-                       L"soon as they can.",
-                       0, 18);
-                rows(w, g_checks.size(), true);
+                header(w, 3, L"Can staff computers connect?",
+                       L"Not yet. Fix the items below, and the address will appear here as "
+                       L"soon as they can.");
+                if (anyRows(g_checks.size(), true))
+                    card(w, t::space1, [&](Walk& c) { rows(c, g_checks.size(), true); });
+                else if (placing)
+                    hideRowButtons();
+                w.y += S(t::space5);
             }
             break;
 
         case PageStatus: {
-            w.text(g_fontTitle, kInk,
-                   attention ? L"Dental Comms needs you" : L"Dental Comms is running",
-                   0, 2);
             std::wstring sub = L"Version " + widen(g_facts.version);
             if (!g_facts.officeName.empty())
-                sub = widen(g_facts.officeName) + L"   ·   " + sub;
-            w.text(g_fontSmall, kMuted, sub, 0, 16);
+                sub = widen(g_facts.officeName) + L"  ·  " + sub;
+            const bool office = g_facts.mode == NetMode::Office;
+            const Status st =
+                attention ? Status{L"Needs you", Icon::Alert, t::warningTint, t::warningInk,
+                                   t::warningInk}
+                : office  ? Status{L"Running", Icon::Check, t::successTint, t::success, t::ink}
+                          : Status{L"This computer only", Icon::Info, t::primaryTint,
+                                   t::primaryInk, t::primaryInk};
+            header(w, 0, L"Dental Comms", sub, &st, &g_labelPlain);
             if (!addr.empty()) {
-                w.text(g_fontBody, kInk, L"Staff computers use this address:", 0, 8);
-                addressBox(w, addr);
+                kicker(w, L"STAFF COMPUTERS GO TO");
+                addressPanel(w);
             } else {
-                w.text(g_fontBold, kAmberText,
-                       L"Staff computers can't connect right now. See below.", 0, 14);
+                banner(w, BannerKind::Warning,
+                       L"Staff computers can't connect right now. See below.");
             }
-            rows(w, g_checks.size(), false);
+            w.y += S(t::space4);
+            actionRow(w, !addr.empty());
+            w.y += S(t::space5);
+            kicker(w, L"STATUS");
+            card(w, t::space1, [&](Walk& c) { rows(c, g_checks.size(), false); });
+            w.y += S(t::space5);
             break;
         }
     }
 
-    const int content = w.y;
-    if (!paint) {
-        const int bottom = rc.bottom - S(kMargin) - S(kBtnH);
-        const int right = rc.right - S(kMargin);
-        if (IsWindowVisible(g_btnPrimary)) {
-            const int bw = buttonWidth(g_btnPrimary);
-            MoveWindow(g_btnPrimary, right - bw, bottom, bw, S(kBtnH), TRUE);
+    const int content = w.y + scroll;
+    const int fh = footerHeight();
+    const int ftop = rc.bottom - fh;
+    if (mode == Walk::Paint) {
+        // The action bar: cream, with shadow-bar rising from it.
+        Gfx gx(dc);
+        const int n = S(12);
+        for (int i = 0; i < n; ++i) {
+            const BYTE a = (BYTE)(16 * (n - i) * (n - i) / (n * n));
+            Gdiplus::SolidBrush b(gc(t::ink, a));
+            gx.g.FillRectangle(&b, 0, ftop - i - 1, rc.right, 1);
         }
-        if (g_page == PageStatus) {
-            placeActionRow(S(kMargin), bottom);
+        fillRect(dc, RECT{0, ftop, rc.right, rc.bottom}, t::surfaceRaised);
+    }
+    if (placing) {
+        const int y = ftop + S(t::space4);
+        const int right = rc.right - S(kPad);
+        if (bigFooter()) {
+            place(g_btnPrimary, S(kPad), y, right - S(kPad), S(t::targetBig), t::surfaceRaised);
+        } else {
             const int bw = buttonWidth(g_btnHide);
-            MoveWindow(g_btnHide, right - bw, bottom, bw, S(kBtnH), TRUE);
+            place(g_btnHide, right - bw, y, bw, S(t::targetMin), t::surfaceRaised);
         }
+        if (addr.empty()) ShowWindow(g_btnCopy, SW_HIDE);
+        if (ipAddressW().empty()) ShowWindow(g_btnCopyIp, SW_HIDE);
     }
     return content;
 }
@@ -560,7 +1026,7 @@ int layout(HDC dc, bool paint) {
 void relayout() {
     if (!g_wnd) return;
     HDC dc = GetDC(g_wnd);
-    layout(dc, false);
+    layout(dc, Walk::Place);
     ReleaseDC(g_wnd, dc);
     InvalidateRect(g_wnd, nullptr, FALSE);
 }
@@ -569,9 +1035,9 @@ void relayout() {
 // nobody has to scroll a checklist.
 void fitWindow() {
     HDC dc = GetDC(g_wnd);
-    const int content = layout(dc, false);
+    const int content = layout(dc, Walk::Measure);
     ReleaseDC(g_wnd, dc);
-    int want = content + S(16) + S(kBtnH) + S(kMargin);
+    int want = content + footerHeight();
     if (want < S(kMinHeight)) want = S(kMinHeight);
 
     RECT rc;
@@ -596,22 +1062,29 @@ void fitWindow() {
                  SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-// --------------------------------------------------------------- buttons
-// Only when it changes: setting a button's text repaints it, and doing that
-// on every refresh would make the buttons flicker.
-void setText(HWND b, const std::wstring& text) {
-    wchar_t cur[160] = {0};
-    GetWindowTextW(b, cur, 160);
-    if (text != cur) SetWindowTextW(b, text.c_str());
+// When the screen is too short for the page, the page scrolls above a fixed
+// action bar. Otherwise there is no scroll bar at all.
+void updateScroll() {
+    HDC dc = GetDC(g_wnd);
+    const int content = layout(dc, Walk::Measure);
+    ReleaseDC(g_wnd, dc);
+    RECT rc;
+    GetClientRect(g_wnd, &rc);
+    const int view = std::max(1, (int)rc.bottom - footerHeight());
+    const int maxScroll = std::max(0, content - view);
+    g_scroll = std::min(std::max(g_scroll, 0), maxScroll);
+    SCROLLINFO si{sizeof(si), SIF_RANGE | SIF_PAGE | SIF_POS};
+    si.nMin = 0;
+    si.nMax = maxScroll ? content - 1 : 0;
+    si.nPage = maxScroll ? (UINT)view : 0;
+    si.nPos = g_scroll;
+    SetScrollInfo(g_wnd, SB_VERT, &si, TRUE);
 }
 
-HWND makeButton(int id, const wchar_t* text, bool primary = false) {
-    HWND b = CreateWindowExW(
-        0, L"BUTTON", text,
-        WS_CHILD | WS_TABSTOP | (primary ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON), 0, 0,
-        10, 10, g_wnd, (HMENU)(INT_PTR)id, g_inst, nullptr);
-    SendMessageW(b, WM_SETFONT, (WPARAM)g_fontBody, TRUE);
-    return b;
+void scrollTo(int pos) {
+    g_scroll = pos;
+    updateScroll();
+    relayout();
 }
 
 std::wstring fixButtonText(const Check& c) {
@@ -631,7 +1104,7 @@ void syncRowButtons() {
         g_rowButtons.assign(g_checks.size(), nullptr);
         for (size_t i = 0; i < g_checks.size(); ++i)
             if (g_checks[i].fix != Fix::None && !g_checks[i].fixLabel.empty())
-                g_rowButtons[i] = makeButton(ID_FIX_BASE + (int)i, L"");
+                g_rowButtons[i] = makeButton(ID_FIX_BASE + (int)i, L"", Look::Secondary);
         g_rowSignature = sig;
     }
     for (size_t i = 0; i < g_checks.size(); ++i) {
@@ -643,32 +1116,47 @@ void syncRowButtons() {
 
 void show(HWND b, bool on) { ShowWindow(b, on ? SW_SHOW : SW_HIDE); }
 
-
-// Which buttons belong on the current page.
+// Which buttons belong on the current page, and how they look there.
 void applyPage() {
     const bool haveAddr = !staffAddress(g_facts).empty();
     show(g_btnPrimary, g_page != PageStatus);
     show(g_btnHide, g_page == PageStatus);
     const bool actions = g_page == PageStatus || (g_page == PageReady && haveAddr);
-    show(g_btnCopy, actions);
-    show(g_btnCard, actions);
+    show(g_btnCard, actions && haveAddr);
     show(g_btnOpen, actions);
-    EnableWindow(g_btnCopy, haveAddr);
-    setText(g_btnOpen, g_page == PageReady ? L"Open it here" : L"Open in a browser");
+    show(g_btnCopy, actions && haveAddr);
+    show(g_btnCopyIp, actions && !ipAddressW().empty());
+    // On the Ready page these are the useful second choices beside the main
+    // action; on the status page nothing is the one main step, so all quiet.
+    for (HWND b : {g_btnCard, g_btnOpen}) {
+        auto it = g_btn.find(b);
+        const Look want = g_page == PageReady ? Look::Secondary : Look::Quiet;
+        if (it != g_btn.end() && it->second.look != want) {
+            it->second.look = want;
+            InvalidateRect(b, nullptr, FALSE);
+        }
+    }
 
     switch (g_page) {
-        case PageWelcome: setText(g_btnPrimary, L"Get started"); break;
-        case PageChecking:
-            setText(g_btnPrimary, L"Next");
-            EnableWindow(g_btnPrimary, g_revealed >= g_checks.size());
+        case PageWelcome:
+            setText(g_btnPrimary, L"Get started");
+            EnableWindow(g_btnPrimary, TRUE);
             break;
+        case PageChecking: {
+            // A disabled button says why it is disabled.
+            const bool done = g_revealed >= g_checks.size();
+            setText(g_btnPrimary, done ? L"Next" : L"Checking…");
+            EnableWindow(g_btnPrimary, done);
+            break;
+        }
         case PageReady:
-            setText(g_btnPrimary, L"Done");
+            setText(g_btnPrimary, L"Finish setup");
             EnableWindow(g_btnPrimary, TRUE);
             break;
         case PageStatus: break;
     }
     fitWindow();
+    updateScroll();
     relayout();
 }
 
@@ -800,10 +1288,12 @@ void showWindow() {
 }
 
 void trayMenu() {
+    const bool haveIp = !ipAddressW().empty();
     HMENU m = CreatePopupMenu();
     AppendMenuW(m, MF_STRING, IDM_TRAY_SHOW, L"Open Dental Comms");
     AppendMenuW(m, MF_STRING | (staffAddress(g_facts).empty() ? MF_GRAYED : 0),
                 IDM_TRAY_COPY, L"Copy the staff address");
+    if (haveIp) AppendMenuW(m, MF_STRING, IDM_TRAY_COPY_IP, L"Copy the IP address");
     AppendMenuW(m, MF_STRING, IDM_TRAY_OPEN, L"Open in a browser");
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING | (runAtSignInEnabled() ? MF_CHECKED : 0),
@@ -820,9 +1310,19 @@ void trayMenu() {
     DestroyMenu(m);
 }
 
-void onCopy() {
-    copyText(staffAddressW());
-    SetWindowTextW(g_btnCopy, L"Copied");
+void resetCopyButtons() {
+    for (HWND b : {g_btnCopy, g_btnCopyIp}) {
+        setIcon(b, Icon::Copy);
+        setText(b, L"Copy address");
+    }
+}
+
+void onCopy(HWND btn, const std::wstring& text) {
+    copyText(text);
+    // Only one says "Copied" at a time.
+    resetCopyButtons();
+    setIcon(btn, Icon::Check);
+    setText(btn, L"Copied");
     SetTimer(g_wnd, TIMER_COPIED, 1500, nullptr);
 }
 
@@ -837,11 +1337,9 @@ void paint(HWND hwnd) {
     HDC mem = CreateCompatibleDC(dc);
     HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
     HGDIOBJ oldBmp = SelectObject(mem, bmp);
-    FillRect(mem, &rc, GetSysColorBrush(COLOR_WINDOW));
+    fillRect(mem, rc, t::surface);
     SetBkMode(mem, TRANSPARENT);
-    HGDIOBJ oldFont = SelectObject(mem, g_fontBody);
-    layout(mem, true);
-    SelectObject(mem, oldFont);
+    layout(mem, Walk::Paint);
     BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
     SelectObject(mem, oldBmp);
     DeleteObject(bmp);
@@ -849,12 +1347,20 @@ void paint(HWND hwnd) {
     EndPaint(hwnd, &ps);
 }
 
-void setAllFonts() {
-    for (HWND b : {g_btnPrimary, g_btnCopy, g_btnCard, g_btnOpen, g_btnHide})
-        if (b) SendMessageW(b, WM_SETFONT, (WPARAM)g_fontBody, TRUE);
-    for (HWND b : g_rowButtons)
-        if (b) SendMessageW(b, WM_SETFONT, (WPARAM)g_fontBody, TRUE);
+// On Windows 11 the title bar takes the page's oat colour, so the window
+// reads as one calm piece. Older Windows ignores these.
+void styleTitleBar(HWND hwnd) {
+    const DWORD kCornerPreference = 33, kBorderColor = 34, kCaptionColor = 35,
+                kTextColor = 36;
+    const DWORD round = 2;   // DWMWCP_ROUND
+    const COLORREF caption = t::surface, text = t::ink, border = t::line;
+    DwmSetWindowAttribute(hwnd, kCornerPreference, &round, sizeof(round));
+    DwmSetWindowAttribute(hwnd, kBorderColor, &border, sizeof(border));
+    DwmSetWindowAttribute(hwnd, kCaptionColor, &caption, sizeof(caption));
+    DwmSetWindowAttribute(hwnd, kTextColor, &text, sizeof(text));
 }
+
+bool isOurButton(HWND h) { return h && g_btn.count(h) != 0; }
 
 LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (g_showMsg && msg == g_showMsg) {
@@ -867,29 +1373,63 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_dpi = (int)GetDpiForWindow(hwnd);
             if (g_dpi < 72 || g_dpi > 480) g_dpi = 96;
             makeFonts();
-            g_btnPrimary = makeButton(ID_PRIMARY, L"Next", true);
-            g_btnCopy = makeButton(ID_COPY, L"Copy address");
-            g_btnCard = makeButton(ID_CARD, L"Print a setup card");
-            g_btnOpen = makeButton(ID_OPEN, L"Open in a browser");
-            g_btnHide = makeButton(ID_HIDE, L"Hide");
+            styleTitleBar(hwnd);
+            g_btnPrimary = makeButton(ID_PRIMARY, L"Next", Look::Primary, true);
+            g_btnCopy = makeButton(ID_COPY, L"Copy address", Look::Secondary);
+            g_btnCopyIp = makeButton(ID_COPY_IP, L"Copy address", Look::Secondary);
+            g_btnCard = makeButton(ID_CARD, L"Print setup card", Look::Quiet);
+            g_btnOpen = makeButton(ID_OPEN, L"Open Dental Comms", Look::Quiet);
+            g_btnHide = makeButton(ID_HIDE, L"Hide window", Look::Quiet);
+            setIcon(g_btnCopy, Icon::Copy);
+            setIcon(g_btnCopyIp, Icon::Copy);
+            setIcon(g_btnCard, Icon::Printer);
+            setIcon(g_btnOpen, Icon::External);
+            for (HWND b : {g_btnCopy, g_btnCopyIp}) g_btn[b].minWidth = buttonWidth(b);
             return 0;
         }
 
         case WM_DPICHANGED: {
             g_dpi = HIWORD(wp);
             makeFonts();
-            setAllFonts();
+            for (HWND b : {g_btnCopy, g_btnCopyIp}) {
+                g_btn[b].minWidth = 0;
+                g_btn[b].minWidth = buttonWidth(b);
+            }
             const RECT* r = (const RECT*)lp;
             SetWindowPos(hwnd, nullptr, r->left, r->top, r->right - r->left,
                          r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
             fitWindow();
             relayout();
+            RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
             return 0;
         }
 
         case WM_SIZE:
+            updateScroll();
             relayout();
             return 0;
+
+        case WM_MOUSEWHEEL:
+            scrollTo(g_scroll - GET_WHEEL_DELTA_WPARAM(wp) * S(60) / WHEEL_DELTA);
+            return 0;
+
+        case WM_VSCROLL: {
+            SCROLLINFO si{sizeof(si), SIF_ALL};
+            GetScrollInfo(hwnd, SB_VERT, &si);
+            int pos = g_scroll;
+            switch (LOWORD(wp)) {
+                case SB_LINEUP: pos -= S(40); break;
+                case SB_LINEDOWN: pos += S(40); break;
+                case SB_PAGEUP: pos -= (int)si.nPage; break;
+                case SB_PAGEDOWN: pos += (int)si.nPage; break;
+                case SB_THUMBTRACK:
+                case SB_THUMBPOSITION: pos = si.nTrackPos; break;
+                case SB_TOP: pos = 0; break;
+                case SB_BOTTOM: pos = si.nMax; break;
+            }
+            scrollTo(pos);
+            return 0;
+        }
 
         case WM_ERASEBKGND:
             return 1;
@@ -898,10 +1438,9 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             paint(hwnd);
             return 0;
 
-        case WM_CTLCOLORBTN:
-            // The corners around a themed button are painted in whatever this
-            // returns; it has to match the page or they show as grey squares.
-            return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+        case WM_DRAWITEM:
+            drawButton((const DRAWITEMSTRUCT*)lp);
+            return TRUE;
 
         case WM_TIMER:
             switch (wp) {
@@ -915,7 +1454,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     return 0;
                 case TIMER_COPIED:
                     KillTimer(hwnd, TIMER_COPIED);
-                    SetWindowTextW(g_btnCopy, L"Copy address");
+                    resetCopyButtons();
                     return 0;
             }
             return 0;
@@ -925,13 +1464,29 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_COMMAND: {
-            const int id = LOWORD(wp);
+            // Drawn buttons report a quick second click as a double-click.
+            // Only plain clicks count, or a double-click on Next would also
+            // press the button that replaces it.
+            if (lp && HIWORD(wp) != BN_CLICKED) return 0;
+            int id = LOWORD(wp);
+            // Enter: press the focused button, otherwise the main one.
+            if (id == IDOK) {
+                HWND f = GetFocus();
+                if (isOurButton(f) && f != g_btnPrimary) {
+                    SendMessageW(f, BM_CLICK, 0, 0);
+                    return 0;
+                }
+                if (!IsWindowVisible(g_btnPrimary) || !IsWindowEnabled(g_btnPrimary))
+                    return 0;
+                id = ID_PRIMARY;
+            }
             if (id >= ID_FIX_BASE && id < ID_FIX_BASE + (int)g_checks.size()) {
                 runFix(g_checks[id - ID_FIX_BASE].fix);
                 return 0;
             }
             switch (id) {
                 case ID_PRIMARY:
+                    g_scroll = 0;
                     if (g_page == PageWelcome) {
                         startChecking();
                     } else if (g_page == PageChecking) {
@@ -948,7 +1503,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     return 0;
                 case ID_COPY:
                 case IDM_TRAY_COPY:
-                    onCopy();
+                    onCopy(g_btnCopy, staffAddressW());
+                    return 0;
+                case ID_COPY_IP:
+                case IDM_TRAY_COPY_IP:
+                    onCopy(g_btnCopyIp, ipAddressW());
                     return 0;
                 case ID_CARD:
                     openUrl(localAddressW() + L"/card");
@@ -1207,9 +1766,11 @@ int runGui(HINSTANCE inst, const Facts& initial, bool showWelcome, bool startHid
 
     INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&icc);
+    Gdiplus::GdiplusStartupInput gsi;
+    Gdiplus::GdiplusStartup(&g_gdiplus, &gsi, nullptr);
 
-    g_icon = makeIcon(256);
-    g_iconSm = makeIcon(GetSystemMetrics(SM_CXSMICON));
+    g_icon = appIcon(GetSystemMetrics(SM_CXICON));
+    g_iconSm = appIcon(GetSystemMetrics(SM_CXSMICON));
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -1217,7 +1778,7 @@ int runGui(HINSTANCE inst, const Facts& initial, bool showWelcome, bool startHid
     wc.hInstance = inst;
     wc.lpszClassName = kClassName;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hbrBackground = nullptr;   // every pixel is painted by paint()
     wc.hIcon = g_icon;
     wc.hIconSm = g_iconSm;
     RegisterClassExW(&wc);
@@ -1226,7 +1787,7 @@ int runGui(HINSTANCE inst, const Facts& initial, bool showWelcome, bool startHid
     const DWORD style =
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN;
     const int sysDpi = (int)GetDpiForSystem();
-    const int w = MulDiv(kWidth + 16, sysDpi, 96), h = MulDiv(520, sysDpi, 96);
+    const int w = MulDiv(kWidth + 16, sysDpi, 96), h = MulDiv(560, sysDpi, 96);
     RECT work{};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     const int x = work.left + ((work.right - work.left) - w) / 2;
@@ -1258,6 +1819,7 @@ int runGui(HINSTANCE inst, const Facts& initial, bool showWelcome, bool startHid
     deleteFonts();
     if (g_icon) DestroyIcon(g_icon);
     if (g_iconSm) DestroyIcon(g_iconSm);
+    if (g_gdiplus) Gdiplus::GdiplusShutdown(g_gdiplus);
     return 0;
 }
 

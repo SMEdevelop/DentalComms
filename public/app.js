@@ -60,7 +60,7 @@
     if (config.notifyFlash === false) return;
     const el = $('flash');
     if (!el) return;
-    el.style.setProperty('--flash-color', urgent ? '#c0392b' : '#1c7ed6');
+    el.style.setProperty('--flash-color', urgent ? 'var(--msg-red)' : 'var(--primary)');
     // Removing the class and forcing a reflow before re-adding it is the only
     // reliable way to replay a CSS animation that may still be running - a
     // second message arriving mid-flash has to restart it, not be swallowed.
@@ -141,7 +141,7 @@
   function paintAttention(on) {
     const sig = attentionSig;
     document.title = on && sig
-      ? '🔔 ' + (sig.note || sig.label) + ' — ' + stationName(sig.from)
+      ? 'New message: ' + (sig.note || sig.label) + ' — ' + stationName(sig.from)
       : normalTitle();
     if (iconLink && baseIcon)
       iconLink.href = on && sig ? alertIcon(sig.color) : baseIcon;
@@ -235,7 +235,8 @@
 
   function renderHeader() {
     $('office-name').textContent = config.officeName || 'Dental Comms';
-    $('my-station-btn').textContent = myStation ? stationName(myStation) : 'Choose…';
+    $('my-station-btn').textContent = myStation ? 'This is: ' + stationName(myStation)
+                                                : 'Choose a room';
     // Every message anyone sends redraws this. Writing the title here while
     // the taskbar is blinking would land on whichever half of the blink was
     // showing and stick there, so leave it to paintAttention until it stops.
@@ -265,10 +266,12 @@
     const away = others.filter(s => !listening.includes(s.id)).length;
 
     const everyone = document.createElement('button');
-    everyone.className = 'tile everyone' + (allPicked ? ' selected' : '');
-    everyone.innerHTML = '<span class="check"></span>📢 Everyone<span class="sub">selects all rooms</span>';
-    if (away) everyone.querySelector('.sub').textContent =
-      `selects all rooms — ${away} with no screen open`;
+    everyone.className = 'sme-tile is-everyone' + (allPicked ? ' is-selected' : '');
+    everyone.setAttribute('aria-pressed', allPicked);
+    everyone.innerHTML = '<span class="sme-check"></span>' + dcIcon('users', 'dc-icon sme-tile-icon') +
+      'Everyone<span class="sme-sub"></span>';
+    everyone.querySelector('.sme-sub').textContent = away
+      ? `All rooms · ${away} with no screen open` : 'All rooms';
     everyone.onclick = () => {
       selected = allPicked ? new Set() : new Set(others.map(s => s.id));
       renderGrid(); renderSendBar();
@@ -278,17 +281,18 @@
     for (const s of others) {
       const b = document.createElement('button');
       const nobodyThere = !listening.includes(s.id);
-      b.className = 'tile' + (selected.has(s.id) ? ' selected' : '') +
-        (nobodyThere ? ' away' : '');
+      b.className = 'sme-tile' + (selected.has(s.id) ? ' is-selected' : '') +
+        (nobodyThere ? ' is-away' : '');
+      b.setAttribute('aria-pressed', selected.has(s.id));
       const check = document.createElement('span');
-      check.className = 'check';
+      check.className = 'sme-check';
       b.append(check, document.createTextNode(s.name));
       // Say so before the message is sent, rather than leaving someone
       // waiting on a checkmark from a room with nothing switched on.
       if (nobodyThere) {
         const note = document.createElement('span');
-        note.className = 'sub away-note';
-        note.textContent = 'no screen open';
+        note.className = 'sme-sub';
+        note.textContent = 'No screen open';
         b.appendChild(note);
       }
       const active = signals.find(sig => sig.to === s.id);
@@ -296,8 +300,11 @@
         const dot = document.createElement('span');
         dot.className = 'busy-dot';
         dot.style.background = active.color;
-        dot.title = active.label;
-        b.appendChild(dot);
+        dot.title = 'Waiting: ' + active.label;
+        const words = document.createElement('span');
+        words.className = 'sr-only';
+        words.textContent = ', waiting: ' + active.label;
+        b.append(dot, words);
       }
       b.onclick = () => toggleSelect(s.id);
       grid.appendChild(b);
@@ -305,14 +312,20 @@
   }
 
   function renderSendBar() {
-    const bar = $('send-bar');
-    if (!selected.size) { bar.hidden = true; return; }
+    const btn = $('send-bar-btn');
+    $('send-bar-clear').hidden = !selected.size;
+    if (!selected.size) {
+      btn.disabled = true;
+      btn.textContent = 'Pick a room first';
+      return;
+    }
     const others = otherStations();
     const label = selected.size === others.length && others.length > 1 ? 'everyone'
       : selected.size <= 2 ? listNames([...selected])
       : `${selected.size} rooms`;
-    $('send-bar-btn').textContent = `Send a message to ${label} ➤`;
-    bar.hidden = false;
+    btn.disabled = false;
+    btn.innerHTML = dcIcon('send');
+    btn.append(`Send message to ${label}`);
   }
   $('send-bar-btn').onclick = () => openCompose();
   $('send-bar-clear').onclick = () => { selected.clear(); renderGrid(); renderSendBar(); };
@@ -323,6 +336,7 @@
     if (!recent.length) {
       const li = document.createElement('li');
       li.textContent = 'Nothing yet today.';
+      li.className = 'hint';
       ul.appendChild(li);
       return;
     }
@@ -373,13 +387,16 @@
     $('setup-actions').innerHTML = '';
   }
 
+  // Each action is { text, kind: 'primary' | 'quiet', onClick }. The primary
+  // goes last, which puts it on the right, or at the bottom when narrow.
   function setActions(list) {
     const box = $('setup-actions');
     box.innerHTML = '';
-    for (const a of list) {
-      if (!a) continue;
+    const sorted = list.filter(Boolean)
+      .sort((a, b) => (a.kind === 'primary') - (b.kind === 'primary'));
+    for (const a of sorted) {
       const b = document.createElement('button');
-      b.className = a.cls;
+      b.className = 'sme-btn sme-btn--' + a.kind;
       b.textContent = a.text;
       b.onclick = a.onClick;
       box.appendChild(b);
@@ -395,17 +412,23 @@
     const firstTime = !myStation && !isOnboarded();
     const changing = !!myStation;
     if (firstTime)
-      setSheet('Step 1 of 3', 'Welcome! 👋', 'Which room is this computer in?',
-               'Tap one. You only do this once.');
+      setSheet('Step 1 of 3', 'Where is this computer?',
+               'Tap the room it\'s in. You only do this once.', '');
     else
-      setSheet('', 'Which room is this computer in?', '',
+      setSheet('', 'Where is this computer?',
                changing ? 'Messages for that room will appear on this computer.'
-                        : 'Tap one. It will be remembered.');
+                        : 'Tap the room it\'s in. It will be remembered.', '');
     const grid = $('setup-grid');
     for (const s of config.stations) {
       const b = document.createElement('button');
-      b.className = 'tile';
-      b.textContent = s.name;
+      b.className = 'sme-tile' + (s.id === myStation ? ' is-selected' : '');
+      b.setAttribute('aria-pressed', s.id === myStation);
+      if (s.id === myStation) {
+        const check = document.createElement('span');
+        check.className = 'sme-check';
+        b.appendChild(check);
+      }
+      b.append(s.name);
       b.onclick = () => {
         myStation = s.id;
         localStorage.setItem('dentalcomms-station', myStation);
@@ -419,7 +442,7 @@
       grid.appendChild(b);
     }
     if (changing)
-      setActions([{ text: 'Cancel', cls: 'btn-big btn-gray', onClick: closeSetup }]);
+      setActions([{ text: 'Cancel', kind: 'quiet', onClick: closeSetup }]);
     $('setup').hidden = false;
   }
 
@@ -439,17 +462,16 @@
   function soundStep(tries) {
     // An office that switched the chime off in Settings has nothing to test.
     if (config.notifySound === false) return startupStep();
-    setSheet('Step 2 of 3', '🔔 Did you hear a chime?',
+    setSheet('Step 2 of 3', 'Did you hear the chime?',
       tries === 0
-        ? 'That is the sound new messages make on this computer.'
+        ? 'That\'s the sound new messages make on this computer.'
         : 'Still nothing? Check that this computer\'s volume is turned up and ' +
           'not muted (the speaker by the clock), then play it again.', '');
     testChime();
     setActions([
-      { text: 'Yes, I heard it', cls: 'btn-big btn-go', onClick: startupStep },
-      { text: tries === 0 ? 'No, play it again' : 'Play it again', cls: 'btn-big btn-gray',
-        onClick: () => soundStep(tries + 1) },
-      tries > 0 ? { text: 'Skip for now', cls: 'btn-link', onClick: startupStep } : null
+      tries > 0 ? { text: 'Skip for now', kind: 'quiet', onClick: startupStep } : null,
+      { text: 'Play it again', kind: 'quiet', onClick: () => soundStep(tries + 1) },
+      { text: 'I heard it', kind: 'primary', onClick: startupStep }
     ]);
   }
 
@@ -467,12 +489,12 @@
 
   function startupStep() {
     if (!canOpenAtStartup()) return doneStep();
-    setSheet('Step 3 of 3', 'Open Dental Comms by itself every morning?',
-      'We\'ll download a small setup file. Open it once, and Dental Comms will ' +
+    setSheet('Step 3 of 3', 'Open Dental Comms every morning?',
+      'This downloads a small setup file. Open it once, and Dental Comms will ' +
       'appear in its own window whenever this computer starts.', '');
     setActions([
-      { text: 'Yes, set it up', cls: 'btn-big btn-go', onClick: downloadStartup },
-      { text: 'Not now', cls: 'btn-big btn-gray', onClick: doneStep }
+      { text: 'Skip for now', kind: 'quiet', onClick: doneStep },
+      { text: 'Set up this computer', kind: 'primary', onClick: downloadStartup }
     ]);
   }
 
@@ -482,10 +504,10 @@
     // rather than handing over an error page with a .cmd name on it.
     const res = await fetch(url).catch(() => null);
     if (!res || !res.ok) {
-      setSheet('Step 3 of 3', 'That didn\'t work this time',
+      setSheet('Step 3 of 3', 'Set it up later?',
         'The setup file couldn\'t be made just now. You can do this later from ' +
         '"Set up this computer" in Settings.', '');
-      setActions([{ text: 'Carry on', cls: 'btn-big btn-go', onClick: doneStep }]);
+      setActions([{ text: 'Finish setup', kind: 'primary', onClick: doneStep }]);
       return;
     }
     const a = document.createElement('a');
@@ -494,22 +516,22 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setSheet('Step 3 of 3', 'Now open the file you just downloaded',
+    setSheet('Step 3 of 3', 'Open the file you just downloaded',
       'Open "Set up Dental Comms" from your downloads, at the top right of the ' +
       'browser. If Windows asks, click Run. It takes a second.',
-      'It only makes a shortcut in your Startup folder. To undo it later, ' +
+      'It only adds a shortcut to your Startup folder. To undo it later, ' +
       'delete that shortcut.');
     setActions([
-      { text: 'Done', cls: 'btn-big btn-go', onClick: doneStep },
-      { text: 'Download it again', cls: 'btn-link', onClick: downloadStartup }
+      { text: 'Download it again', kind: 'quiet', onClick: downloadStartup },
+      { text: 'Finish setup', kind: 'primary', onClick: doneStep }
     ]);
   }
 
   function doneStep() {
     setOnboarded();
-    setSheet('', 'All set ✓', `Messages for ${stationName(myStation)} will appear here.`,
-      'To pick a different room later, tap the room name at the top right.');
-    setActions([{ text: 'Start using Dental Comms', cls: 'btn-big btn-go', onClick: closeSetup }]);
+    setSheet('', 'You\'re all set ✓', `Messages for ${stationName(myStation)} will appear here.`,
+      'To pick a different room later, tap "This is" at the top right.');
+    setActions([{ text: 'Start using Dental Comms', kind: 'primary', onClick: closeSetup }]);
   }
   $('my-station-btn').onclick = showSetup;
 
@@ -519,13 +541,22 @@
     if (!selected.size) return;
     $('compose-to').textContent = listNames([...selected]);
     $('compose-note').value = '';
+    noteError(false);
     const grid = $('preset-grid');
     grid.innerHTML = '';
     for (const pr of config.presets) {
       const b = document.createElement('button');
-      b.className = 'preset';
-      b.style.background = pr.color;
+      const name = MSG_COLOURS[String(pr.color).toLowerCase()];
+      b.className = 'sme-msg' + (name ? ' sme-msg--' + name : '');
+      if (!name) b.style.background = pr.color;   // an older server's colour
       b.textContent = pr.label;
+      // Never colour alone: urgent says so in words.
+      if (pr.urgent) {
+        const tag = document.createElement('span');
+        tag.className = 'sme-urgent';
+        tag.textContent = 'URGENT';
+        b.appendChild(tag);
+      }
       b.onclick = () => sendSignal(pr.id, '');
       grid.appendChild(b);
     }
@@ -534,9 +565,23 @@
   function closeCompose() { $('compose').hidden = true; }
   $('compose-close').onclick = closeCompose;
   $('compose-cancel').onclick = closeCompose;
+  // The seven message colours, by the hex the server stores for each.
+  const MSG_COLOURS = {
+    '#b4483a': 'red', '#4f7a52': 'green', '#3d6b8e': 'blue', '#9a6a2e': 'ochre',
+    '#7a5a7e': 'plum', '#3f7a74': 'spruce', '#6f5a48': 'walnut'
+  };
+
+  function noteError(on) {
+    $('note-field').classList.toggle('is-error', on);
+    $('note-hint').textContent = on
+      ? 'Type a note first, or tap one of the messages above.'
+      : 'Please don\'t include patient names.';
+  }
+  $('compose-note').addEventListener('input', () => noteError(false));
   $('compose-send-note').onclick = () => {
     const note = $('compose-note').value.trim();
     if (note) sendSignal(null, note);
+    else { noteError(true); $('compose-note').focus(); }
   };
   $('compose-note').addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.value.trim()) sendSignal(null, e.target.value.trim());
@@ -555,9 +600,11 @@
       pendingSent = { ids: data.signals.map(s => s.id), total: data.signals.length, seen: 0 };
       selected.clear();
       renderGrid(); renderSendBar();
-      showToast(`Sent to ${listNames(to)} — waiting for them to see it…`, { cancel: true });
+      hideNotice();
+      showToast(`Sent to ${listNames(to)}. Waiting for them to see it…`, { cancel: true });
     } catch {
-      showToast('⚠️ Couldn\'t send. Check that the main Dental Comms computer is on, then try again.', { error: true });
+      showNotice('Your message wasn\'t sent. Check that the main Dental Comms computer is ' +
+                 'on, then try again.');
     }
   }
 
@@ -565,11 +612,20 @@
   function showToast(text, opts = {}) {
     clearTimeout(toastTimer);
     $('toast-text').textContent = text;
-    $('toast').className = opts.success ? 'success' : '';
+    $('toast').className = 'sme-toast' + (opts.success ? ' sme-toast--success' : '');
     $('toast-cancel').hidden = !opts.cancel;
     $('toast').hidden = false;
     if (!opts.cancel) toastTimer = setTimeout(() => { $('toast').hidden = true; }, 5000);
   }
+  // Problems go in a banner at the top, which stays until it is closed:
+  // a toast would disappear before anyone read it.
+  function showNotice(text) {
+    $('notice-text').textContent = text;
+    $('notice').hidden = false;
+  }
+  function hideNotice() { $('notice').hidden = true; }
+  $('notice-close').onclick = hideNotice;
+
   $('toast-cancel').onclick = async () => {
     if (pendingSent) {
       const ids = pendingSent.ids;
@@ -603,11 +659,16 @@
       return;
     }
     const sig = queue[0];
-    $('alert-from').textContent = stationName(sig.from) + (sig.to === 'all' ? ' (to everyone)' : '');
+    const when = sig.time
+      ? new Date(sig.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    $('alert-from').textContent = 'From ' + stationName(sig.from) +
+      (sig.to === 'all' ? ' (to everyone)' : '') + (when ? ' · ' + when : '');
     $('alert-label').textContent = sig.label === 'Message' && sig.note ? '' : sig.label;
     $('alert-note').textContent = sig.note || '';
     $('alert-sheet').style.setProperty('--alert-color', sig.color);
-    $('alert-more').textContent = queue.length > 1 ? `${queue.length - 1} more message(s) waiting behind this one` : '';
+    const more = queue.length - 1;
+    $('alert-more').textContent = more === 1 ? '1 more message is waiting behind this one.'
+      : more > 1 ? `${more} more messages are waiting behind this one.` : '';
     $('alert-ack').onclick = async () => {
       await fetch(`/api/signals/${sig.id}/ack`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -638,7 +699,9 @@
   $('recent-toggle').onclick = () => {
     const list = $('recent-list');
     list.hidden = !list.hidden;
-    $('recent-toggle').textContent = list.hidden ? 'Recent activity ▾' : 'Recent activity ▴';
+    $('recent-toggle').setAttribute('aria-expanded', !list.hidden);
+    $('recent-toggle-text').textContent =
+      list.hidden ? 'Show recent activity' : 'Hide recent activity';
   };
 
   // ---------------- the "pick more than one" tip ----------------
@@ -664,8 +727,8 @@
       ? 'Dental Comms is running on this computer (its icon by the clock)'
       : isNumber ? 'the main Dental Comms computer is turned on'
                  : `${host.toUpperCase()} is turned on`;
-    $('offline').textContent = '⚠️ Lost contact with Dental Comms, so messages may ' +
-      `not arrive. Reconnecting… If this stays red, check that ${where}.`;
+    $('offline-text').textContent = 'Lost contact with Dental Comms. Messages won\'t ' +
+      `arrive until it's back. If this stays, check that ${where}.`;
   })();
   // A short delay keeps a one-second blip from flashing a scary red bar; a
   // genuine outage stays on screen until the stream is really back.
@@ -723,12 +786,12 @@
         pendingSent.seen++;
         if (pendingSent.seen >= pendingSent.total) {
           const msg = pendingSent.total === 1
-            ? `✓ ${stationName(sig.by)} saw your message`
-            : '✓ Everyone saw your message';
+            ? `✓ Seen by ${stationName(sig.by)}`
+            : '✓ Seen by everyone';
           pendingSent = null;
           showToast(msg, { success: true });
         } else {
-          showToast(`✓ ${stationName(sig.by)} saw it — waiting on ${pendingSent.total - pendingSent.seen} more…`, { cancel: true });
+          showToast(`✓ Seen by ${stationName(sig.by)}. Waiting on ${pendingSent.total - pendingSent.seen} more…`, { cancel: true });
         }
       }
       renderAll();
@@ -745,7 +808,9 @@
       if (pendingSent && pendingSent.ids.includes(sig.id)) {
         pendingSent.ids = pendingSent.ids.filter(id => id !== sig.id);
         if (!pendingSent.ids.length) pendingSent = null;
-        showToast(`⚠️ ${stationName(sig.to)} never saw your message.`, {});
+        $('toast').hidden = true;
+        showNotice(`${stationName(sig.to)} never saw your message. Nobody tapped Got it ` +
+                   'before it timed out.');
       }
       renderAll();
     });
@@ -756,8 +821,7 @@
       const mine = signals.find(s => s.id === sig.id);
       if (mine) mine.stale = true;
       if (pendingSent && pendingSent.ids.includes(sig.id)) {
-        showToast(`⚠️ ${stationName(sig.to)} still hasn't answered — nobody has tapped Got it.`,
-                  { cancel: true });
+        showNotice(`${stationName(sig.to)} hasn't answered yet. Nobody has tapped Got it.`);
         playChime(false);
       }
     });
@@ -795,8 +859,8 @@
     $('popout-btn').onclick = () => {
       const w = window.open(location.origin, 'DentalCommsPopup',
         'popup=yes,width=430,height=720,left=80,top=80,resizable=yes');
-      if (w) { w.focus(); showToast('Dental Comms opened in its own little window — you can resize it and keep it in a corner.'); }
-      else { showToast('⚠️ Your browser blocked the pop-up — allow pop-ups for this site and try again.'); }
+      if (w) { w.focus(); showToast('Opened in its own window. Keep it in a corner.'); }
+      else { showNotice('Your browser blocked the new window. Allow pop-ups for this site, then try again.'); }
     };
   }
 

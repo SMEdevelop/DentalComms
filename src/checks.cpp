@@ -50,6 +50,21 @@ std::string staffAddress(const Facts& f) {
     return "http://" + f.addresses[0] + ":" + num(f.port);
 }
 
+std::string staffIpAddress(const Facts& f) {
+    if (staffAddress(f).empty()) return "";
+    for (const auto& a : f.addresses) {
+        if (a.empty() || a == f.computer) continue;
+        int dots = 0;
+        bool digits = true;
+        for (char ch : a) {
+            if (ch == '.') ++dots;
+            else if (ch < '0' || ch > '9') digits = false;
+        }
+        if (digits && dots == 3) return "http://" + a + ":" + num(f.port);
+    }
+    return "";
+}
+
 bool needsAttention(const std::vector<Check>& checks) {
     for (const auto& c : checks)
         if (c.state == CheckState::NeedsYou) return true;
@@ -76,7 +91,7 @@ std::vector<Check> buildChecks(const Facts& f) {
                        : "The settings file says to stay off on this kind of "
                          "network. Dental Comms will start by itself on a network "
                          "it is allowed to use.",
-            canTrust ? "This is our office network" : "",
+            canTrust ? "Trust this network" : "",
             canTrust ? Fix::TrustNetwork : Fix::None));
     } else if (!f.serving) {
         out.push_back(row(
@@ -139,7 +154,7 @@ std::vector<Check> buildChecks(const Facts& f) {
                     " is a public network, like coffee-shop Wi-Fi, so Dental Comms "
                     "keeps other computers out. If this computer is at your office "
                     "right now, tell Windows so:",
-                "Yes, this is our office network", Fix::TrustNetwork));
+                "Trust this network", Fix::TrustNetwork));
         } else {
             out.push_back(row(
                 CheckState::Note, "Set to this computer only",
@@ -195,7 +210,7 @@ std::vector<Check> buildChecks(const Facts& f) {
                                                   sinceText(f.lastStaffSeen, f.now)));
         } else {
             out.push_back(row(CheckState::Note, "No other computer has connected yet",
-                              "Open the address below on a staff computer to try it."));
+                              "Open the staff address on another computer to try it."));
         }
     }
 
@@ -206,7 +221,7 @@ std::vector<Check> buildChecks(const Facts& f) {
         out.push_back(row(CheckState::Note, "Doesn't start by itself yet",
                           "If this computer restarts, messages stop until someone "
                           "opens Dental Comms again.",
-                          "Start it with Windows", Fix::StartWithWindows));
+                          "Start with Windows", Fix::StartWithWindows));
     }
     return out;
 }

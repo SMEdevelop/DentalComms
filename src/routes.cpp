@@ -105,11 +105,14 @@ const char* const kWrongAddressPage =
     "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
     "<title>Not quite the right address - Dental Comms</title><style>"
-    "body{margin:0;padding:48px 16px;background:#f4f6f8;color:#1d2733;"
-    "font:17px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}"
-    ".card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #dde4ea;"
-    "border-radius:16px;padding:28px}h1{font-size:1.4rem;margin:0 0 10px}"
-    "p{margin:0 0 12px}.muted{color:#66788c;font-size:.95rem}</style></head><body>"
+    // The SMEdevelop design system's colours and type, written out because
+    // this page must not depend on any other file being reachable.
+    "body{margin:0;padding:48px 16px;background:#f7f3ec;color:#3a3027;"
+    "font:400 17px/26px 'Segoe UI',system-ui,-apple-system,Roboto,sans-serif}"
+    ".card{max-width:560px;margin:0 auto;background:#fffdf9;border:2px solid #e3d9c8;"
+    "border-radius:16px;padding:32px;box-shadow:0 1px 2px rgba(58,48,39,.06),"
+    "0 2px 8px rgba(58,48,39,.05)}h1{font-size:26px;line-height:32px;font-weight:700;margin:0 0 12px}"
+    "p{margin:0 0 12px}.muted{color:#6e5f4e}</style></head><body>"
     "<div class=\"card\"><h1>This address isn't quite right</h1>"
     "<p>Dental Comms is here, but it doesn't recognise the name you used to "
     "reach it.</p><p>Use the address on your Dental Comms setup card, or the one "
@@ -179,6 +182,7 @@ std::string mimeFor(const std::string& path) {
     if (ext == ".png") return "image/png";
     if (ext == ".json") return "application/json";
     if (ext == ".ico") return "image/x-icon";
+    if (ext == ".txt") return "text/plain; charset=utf-8";
     return "application/octet-stream";
 }
 

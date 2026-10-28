@@ -80,10 +80,11 @@ any web browser.
       Anything that needs you is marked **!** with a plain explanation, and
       usually a button that fixes it (see
       [What the window checks](#what-the-window-checks)).
-   3. **Ready.** The address to give every other computer, with buttons to
-      copy it, print a setup card, or open it here.
+   3. **Ready.** The address to give every other computer, by name and by IP
+      address, each with a **Copy address** button, plus **Print setup card**
+      and **Open Dental Comms**.
 
-   After that, the same window is a status page: the address, and the same
+   After that, the same window is a status page: both addresses, and the same
    checklist kept up to date while Dental Comms runs.
 
    **Closing that window no longer turns Dental Comms off.** It tucks itself
@@ -116,12 +117,13 @@ any web browser.
    and type in the address the window shows, for example
    `http://RECEPTION-PC:3272`. **Bookmark it.**
 
-   **Print a setup card** (a button in the window, or `/card`) gives you one
+   **Print setup card** (a button in the window, or `/card`) gives you one
    page with the address, a QR code that tablets and phones can scan with
    their camera, and these steps. Leave one by each computer.
 
-   The number addresses (`http://192.168.1.25:3272`) work too. The card lists
-   them as a fallback.
+   The IP address (`http://192.168.1.25:3272`) works too, for any computer
+   that can't find the server by name. The window shows it under the name,
+   and the card lists it as a fallback.
 
    > **Bookmark the name, not the number.** Router restarts can change a
    > computer's number address, silently breaking every bookmark in the office
@@ -161,11 +163,11 @@ means fine, blue is worth knowing, and **!** needs someone.
 | Using connection number 3273 | The usual number was taken on the first start, so it picked the next free one. Only ever happens before setup is finished, so no bookmarks break. | Nothing. |
 | Your settings were repaired / reset | `data\config.json` was damaged. It was set aside as `config.damaged-<date>.json` and replaced by the last good copy (`config.backup.json`) or, failing that, the standard rooms. | Nothing, unless you want something back from the damaged file. |
 | Dental Comms can't save its settings | It is in a folder Windows protects. | Use the installer instead. |
-| Other computers can't connect yet | Windows calls this network **Public**. | **Yes, this is our office network** marks it Private (administrator prompt). Dental Comms switches over without a restart. |
+| Other computers can't connect yet | Windows calls this network **Public**. | **Trust this network** marks it Private (administrator prompt). Dental Comms switches over without a restart. |
 | Windows Firewall is keeping other computers out | Someone clicked Cancel on Windows' "allow access" box, which leaves a blocking rule behind. | **Let them in** switches off the blocking rule and adds an allow rule for office networks (administrator prompt). |
 | Your office's IT settings may be keeping other computers out | Firewall rules come from the domain. | Ask IT to allow Dental Comms (TCP, the port shown). |
 | 3 staff screens are connected / Reached from another computer | Proof that staff computers get through. Once this shows, the firewall row is no longer needed. | — |
-| Doesn't start by itself yet | It won't come back after a restart. | **Start it with Windows**. |
+| Doesn't start by itself yet | It won't come back after a restart. | **Start with Windows**. |
 
 If the network changes while Dental Comms is running (a laptop server moved
 to another network, say), it follows: it closes to other computers on a
@@ -175,9 +177,10 @@ says so once; clicking it opens the window.
 
 ## Everyday use (what staff see)
 
-- **To send:** tap the room you want, then tap a big colored button.
-  Or type a short note instead. One tap of **📢 Everyone** reaches all stations.
-- **To receive:** an alert fills the screen with a chime. Tap **✓ Got it** —
+- **To send:** tap the room you want, then **Send message**, then a big
+  coloured button. Or type a short note instead. One tap of **Everyone** reaches
+  all rooms.
+- **To receive:** an alert fills the screen with a chime. Tap **Got it** —
   the chime stops and the sender sees a checkmark that you saw it.
 - **Rooms with nothing switched on** are drawn faded, marked *no screen open*.
   You can still message them, but nobody is going to see it until someone
@@ -186,11 +189,11 @@ says so once; clicking it opens the window.
   sent it is told so — rather than being left assuming help is coming. After
   an hour Dental Comms gives up on it, so an alert sent to an empty room at
   closing time doesn't greet the morning shift.
-- **A red bar across the top** means this computer has lost contact with the
+- **A red banner across the top** means this computer has lost contact with the
   Dental Comms server, and messages may not be arriving. It clears by itself the
   moment the connection is back.
-- **Missed something?** Tap **Recent activity** at the bottom of the screen.
-- **Keep it in a corner:** tap **⧉ Pop out** in the header to open Dental Comms
+- **Missed something?** Tap **Show recent activity** below the rooms.
+- **Keep it in a corner:** tap **Pop out** in the header to open Dental Comms
   in its own small window — resize it and tuck it beside your other programs.
   The layout shrinks to a single column when the window is narrow. (If nothing
   opens, the browser blocked the pop-up — allow pop-ups for this site.)
@@ -211,7 +214,7 @@ The page offers a **shortcut to download**. Drop it into the startup folder
 (press `Win+R`, type `shell:startup`, drag it in) and Dental Comms opens in its
 own window every time that computer starts, with nobody pressing anything.
 
-**Why a shortcut rather than the ⧉ Pop out button.** The pop-out button calls
+**Why a shortcut rather than the Pop out button.** The pop-out button calls
 the browser's `window.open()`, and every browser only honours that inside a
 real click — so it *cannot* fire by itself at sign-in, however it is
 configured. A computer that restarts comes up with Dental Comms as an ordinary
@@ -255,12 +258,21 @@ click from anywhere. To have it start with the computer, press `Win+R`, type
 
 ## Changing rooms and buttons
 
-Tap **⚙️ Settings** in the top-right corner of any screen to rename the
-office, add/remove stations, and edit the quick-message buttons (text, color,
-and whether they're "urgent"). Changes appear on everyone's screens instantly.
+Tap **Settings** in the top-right corner of any screen to rename the
+office, add or remove rooms, and edit the message buttons (text, colour, and
+whether they're "urgent"). Changes appear on everyone's screens when you tap
+**Save changes**. Deleting a room or a button asks first.
 
-**Putting the buttons in the right order.** Each button has ▲ ▼ beside it in
-Settings. The order there is the order they appear on every screen, so the
+**Colours.** Message buttons come in seven colours, each with a meaning that
+stays the same in every office: terracotta for urgent, sage for ready, denim
+for calls and information, ochre for help wanted, and plum, spruce and walnut
+free to use. White text stays readable on all seven. Buttons made with an
+older version, or a colour typed into `data\config.json`, show in whichever
+of the seven is closest; the old standard buttons keep their meaning (the old
+red becomes terracotta, the old green sage, and so on).
+
+**Putting the buttons in the right order.** Each button has **Move up** and
+**Move down** beside it in Settings. The order there is the order they appear on every screen, so the
 message you send twenty times a day belongs at the top. Reordering is instant
 for everyone — nobody needs to reload.
 
@@ -283,7 +295,7 @@ silently.
 Dental Comms spends the day behind the practice management software. Two things
 make it work properly on such a station:
 
-- Press **⧉ Pop out** once. A pop-out is its own window with its own taskbar
+- Press **Pop out** once. A pop-out is its own window with its own taskbar
   button, and blinking that button is the whole point. An ordinary tab shares
   a taskbar button with every other tab, labelled by whichever one is on top,
   so there is nothing of its own to blink.
@@ -347,7 +359,7 @@ The window tells you which one applies every time it starts, so you're never
 guessing.
 
 **"Staff can't connect and the window says Public."** Windows has decided your
-office network is an unfamiliar one. Click **Yes, this is our office network**
+office network is an unfamiliar one. Click **Trust this network**
 in the Dental Comms window (it needs an administrator's OK), or do it by hand:
 Settings → Network & internet → click your connection → set the network
 profile to **Private**. Either way, Dental Comms notices within a few seconds;
@@ -368,7 +380,7 @@ To change the rules, edit `"networks"` in `data/config.json`:
 - `off` — serve nobody, not even this computer. Dental Comms waits by the
   clock and starts serving by itself once it is on a network it may use.
 
-Settings you make on the ⚙️ Settings page never overwrite this.
+Settings you make on the Settings page never overwrite this.
 
 Dental Comms also only answers to its own addresses: `localhost`, this
 computer's name, and the address a connection actually came in on. That is
@@ -391,7 +403,7 @@ the tray menu does the same for the automatic launch only, by passing
 `--tray` — so you can have it appear quietly at sign-in and still get a window
 when you start it by hand.
 
-These have no page in ⚙️ Settings; edit the file and restart Dental Comms.
+These have no page in Settings; edit the file and restart Dental Comms.
 Saving from the Settings page leaves them alone.
 
 | Setting | Default | What it does |
@@ -408,11 +420,11 @@ Saving from the Settings page leaves them alone.
 |---|---|
 | Page won't load on staff computers | Open the Dental Comms window on the server and look for a row marked **!**. Otherwise: is the address typed exactly as shown? Both computers on the same office network/Wi-Fi (not "guest" Wi-Fi)? |
 | "Dental Comms does not answer to that address" | You reached it by a name it doesn't recognise. Use the address in the Dental Comms window, or add the name to `allowedHosts` (see above). |
-| A room always says *no screen open* | Nobody has Dental Comms open there, or that computer picked a different station. Open the page there and check the station name in the top-right. |
+| A room always says *No screen open* | Nobody has Dental Comms open there, or that computer picked a different room. Open the page there and check "This is" in the top-right. |
 | "Dental Comms can't start yet" with a program's name | That program is using Dental Comms' connection number. Close it and click **Try again**, or choose **Use a different number** and update the bookmarks to the new address the window shows. |
 | No sound | Tap anywhere on the page once. Check the computer isn't muted. |
-| "Couldn't send" message, or a red bar at the top | The server computer is off or Dental Comms was turned off there. The red bar names the computer to check. |
-| Wrong station name on a computer | Tap the station name in the top-right corner and pick again. |
+| "Your message wasn't sent", or a red banner at the top | The server computer is off or Dental Comms was turned off there. The red banner names the computer to check. |
+| Wrong room on a computer | Tap "This is" in the top-right corner and pick again. |
 | Staff computers can't reach it, but the server page works | The window's checklist names the cause: a Public network or a firewall rule, each with a button to fix it. See [What the window checks](#what-the-window-checks). |
 | An address in the window doesn't work from other computers | Use another one it lists. Dental Comms already hides the addresses it knows are unreachable (see below), but it cannot always tell. |
 
@@ -541,6 +553,8 @@ The code is laid out as:
 src/
   main.cpp     startup: port selection, following the network, the accept loop
   gui.cpp      the window: first-run welcome, status checklist, tray icon
+  theme.h      the design system's colours, type and sizes for the window
+  icons.cpp    the line icons, drawn with GDI+
   checks.cpp   the checklist's rows and words, built from plain facts
   firewall.cpp reading Windows Firewall's rules, and the elevated fix
   routes.cpp   the API, static files, and the event stream
@@ -552,6 +566,13 @@ src/
   util.cpp     strings, paths, files
 tests/
   selftest.cpp
+public/
+  index.html, app.js   the staff page
+  admin.html           Settings
+  setup.html, card.html  set up a computer; the printable setup card
+  style.css            page layout
+  sme/                 the design system's tokens and components
+  icons.js             the line icons
 ```
 
 `DentalComms.exe` takes a few switches besides `--tray`. `--quit` asks the
@@ -650,6 +671,15 @@ Copyright © 2026 SMEdevelop.
 [QR Code Generator](https://github.com/kazuhikoarase/qrcode-generator) by
 Kazuhiko Arase, also under the MIT License; its notice is at the top of the
 file. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
+
+The line icons (`public/icons.js`, and the same shapes in `src/icons.cpp`) are
+from [Lucide](https://lucide.dev), under the ISC License; its notice is in
+`public/icons-LICENSE.txt`.
+
+The look (colours, type, spacing, rounding and components) follows the
+SMEdevelop design system. Its values are copied into `public/sme/tokens.css`,
+`public/sme/components.css` and `src/theme.h`; change the design system first,
+then those three files.
 
 You may use, copy, modify, merge, publish, distribute, sublicense and sell it,
 provided the copyright notice and the license text travel with it.

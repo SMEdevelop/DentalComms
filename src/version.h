@@ -8,9 +8,9 @@
 
 #define DC_VERSION_MAJOR 0
 #define DC_VERSION_MINOR 9
-#define DC_VERSION_PATCH 4
+#define DC_VERSION_PATCH 5
 
 // Shown in the startup banner. "beta" is part of the string on purpose: the
 // person starting this in an office should be able to see at a glance that it
 // is not the finished thing.
-#define DC_VERSION_STRING "0.9.4 beta"
+#define DC_VERSION_STRING "0.9.5 beta"

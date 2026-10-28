@@ -12,7 +12,53 @@ body {
 
 [hidden] { display: none !important; }
 
-.title { font: 700 26px/32px var(--font-sans); color: var(--ink); }
+/* ---------- sizes ----------
+   The same sizes as Dental Comms 0.9.4, in rem, and the rem itself follows
+   the window: 17px text on a wide screen, easing down to 14px in a narrow
+   pop-out, so a small window shows small type rather than cramped big type.
+   The design system's components are sized in px; these override them. */
+html { font-size: clamp(14px, 12px + 0.45vw, 17px); }
+:root {
+  --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem;
+  --space-5: 1.4rem; --space-6: 2rem; --space-7: 2.8rem;
+  --target-min: 2.5rem; --target-big: 3.5rem; --tile-min: 13.5rem;
+}
+body { font: 400 1rem/1.5 var(--font-sans); }
+.title { font-size: 1.3rem; line-height: 1.25; }
+.sheet .title { font-size: 1.6rem; }
+.dc-icon { width: 1.2rem; height: 1.2rem; }
+.sme-pill .dc-icon { width: 1.05rem; height: 1.05rem; }
+
+.sme-btn { font-size: 1.05rem; line-height: 1.3; padding: 0 1.1rem; gap: .45rem; }
+.sme-btn svg { width: 1.2rem; height: 1.2rem; }
+.sme-btn--big { font-size: 1.25rem; line-height: 1.3; }
+.sme-pill { font-size: 1rem; line-height: 1.2; padding: 0 1rem; gap: .4rem; }
+.sme-pill svg { width: 1.05rem; height: 1.05rem; }
+
+.sme-tile { font-size: 1.5rem; line-height: 1.25; padding: 1.75rem 1rem; }
+.sme-tile .sme-sub { font-size: .85rem; line-height: 1.3; margin-top: .35rem; }
+.sme-tile .sme-check { width: 1.5rem; height: 1.5rem; top: .6rem; left: .7rem; }
+.sme-tile.is-selected .sme-check::after { font-size: .95rem; }
+.sme-tile .sme-tile-icon { width: 1.75rem; height: 1.75rem; }
+
+.sme-msg { font-size: 1.3rem; line-height: 1.25; min-height: 0; padding: 1.5rem 1rem; }
+.sme-msg .sme-urgent { font-size: .7rem; line-height: 1.3rem; }
+
+.sme-banner { font-size: 1rem; line-height: 1.4; padding: .6rem .9rem; }
+.sme-banner svg { width: 1.2rem; height: 1.2rem; }
+.sme-toast { font-size: 1.05rem; line-height: 1.4; padding: .7rem 1.3rem; }
+.sme-toast button { min-height: 2rem; font-size: .9rem; }
+.sme-step { font-size: .8rem; line-height: 1.4; padding: .2rem .7rem; }
+
+.sme-field label, .sme-field .sme-hint { font-size: .9rem; line-height: 1.3; }
+.sme-field input { font-size: 1.05rem; }
+
+.sme-alert .sme-from { font-size: 1.2rem; line-height: 1.4; }
+.sme-alert .sme-what { font-size: 2.6rem; line-height: 1.15; margin: 1rem 0 .4rem; }
+.sme-alert .sme-note { font-size: 1.4rem; line-height: 1.35; }
+
+
+.title { font-weight: 700; color: var(--ink); }
 .lede { color: var(--ink-muted); margin-top: var(--space-1); }
 .hint { color: var(--ink-muted); }
 .lede:empty, .hint:empty { display: none; }
@@ -23,11 +69,10 @@ body {
 
 /* Line icons: 2px stroke, round ends, in the text colour. */
 .dc-icon {
-  width: 22px; height: 22px; flex: none;
+  flex: none;
   stroke: currentColor; fill: none; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.sme-pill .dc-icon { width: 18px; height: 18px; }
 
 a.sme-btn, a.sme-pill { text-decoration: none; }
 
@@ -52,7 +97,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   max-width: 1050px; margin: 0 auto; padding: 0 var(--space-5);
 }
 #banners:has(> :not([hidden])) { padding-top: var(--space-4); }
-.banner-close { margin-left: auto; min-height: 40px; padding: 0 var(--space-4); font-size: 17px; }
+.banner-close { margin-left: auto; flex: none; white-space: nowrap; min-height: 2.1rem; padding: 0 var(--space-4); font-size: .95rem; }
 
 /* ---------- main ---------- */
 #main { max-width: 1050px; margin: 0 auto; padding: var(--space-5) var(--space-5) 160px; }
@@ -64,13 +109,13 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   gap: var(--space-4);
 }
 .sme-tile .sme-tile-icon {
-  display: block; margin: 0 auto var(--space-2); width: 30px; height: 30px; color: var(--clay-ink);
+  display: block; margin: 0 auto var(--space-2); color: var(--clay-ink);
 }
 
 /* Something already waiting in that room: a slow pulse, and its words. */
 .sme-tile .busy-dot {
-  position: absolute; top: 12px; right: 12px;
-  width: 14px; height: 14px; border-radius: 50%;
+  position: absolute; top: .7rem; right: .7rem;
+  width: .85rem; height: .85rem; border-radius: 50%;
   animation: pulse 1.8s ease-in-out infinite;
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
@@ -86,7 +131,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: var(--surface-raised);
   border: 2px solid var(--line); border-radius: var(--radius-sm);
 }
-#recent-list .t { font: 600 15px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; align-self: center; }
+#recent-list .t { font: 600 .9rem/1.3 var(--font-sans); color: var(--ink-muted); white-space: nowrap; align-self: center; }
 
 /* ---------- sheets ---------- */
 .overlay {
@@ -110,7 +155,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .sheet .grid:empty { display: none; }
 .close-x {
   position: absolute; top: var(--space-4); right: var(--space-4);
-  width: 48px; height: 48px; border-radius: 50%; border: none;
+  width: 2.6rem; height: 2.6rem; border-radius: 50%; border: none;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-sunken); color: var(--ink); cursor: pointer;
 }
@@ -127,7 +172,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 /* ---------- compose ---------- */
 .msg-grid {
   display: grid; gap: var(--space-4); margin-top: var(--space-5);
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
 }
 .note-row { margin-top: var(--space-5); }
 .note-row .sme-field { max-width: none; }
@@ -146,30 +191,44 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   box-shadow: var(--shadow-bar);
 }
 #send-bar .sme-btn { min-height: var(--target-big); }
-#send-bar-btn { flex: 1; max-width: 640px; font-size: 20px; font-weight: 700; }
+#send-bar-btn { flex: 1; max-width: 640px; font-size: 1.35rem; font-weight: 700; }
 
 /* ---------- toast ---------- */
 #toast {
-  position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: 6rem; transform: translateX(-50%);
   z-index: 60; max-width: calc(100vw - 32px);
 }
 #toast button { flex: none; }
 
 /* ---------- narrow screens ---------- */
 @media (max-width: 600px) {
-  .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .sme-tile { font-size: 20px; line-height: 26px; padding: var(--space-5) var(--space-3); }
-  .sme-alert .sme-what { font-size: 34px; line-height: 40px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .75rem; }
+  .sme-tile { font-size: 1.15rem; padding: 2.4rem .6rem 1.2rem; }
+  .sme-msg { font-size: 1.1rem; padding: 1rem .75rem; }
+  .sme-alert .sme-what { font-size: 1.8rem; }
 }
+/* Very narrow, like a pop-out in a corner: one compact row per room. */
 @media (max-width: 480px) {
-  #topbar { padding: var(--space-3) var(--space-4); }
-  #main, #banners { padding-left: var(--space-4); padding-right: var(--space-4); }
-  .grid { grid-template-columns: 1fr; }
+  #topbar { padding: .6rem .75rem; }
+  #topbar .title { font-size: 1.05rem; }
+  #main, #banners { padding-left: .75rem; padding-right: .75rem; }
+  .grid { grid-template-columns: 1fr; gap: .6rem; }
+  .sme-tile { font-size: 1.1rem; padding: .9rem 2.4rem .9rem 3rem; text-align: left; }
+  .sme-tile .sme-check { top: 50%; transform: translateY(-50%); width: 1.3rem; height: 1.3rem; }
+  .sme-tile .sme-sub { margin-top: .1rem; }
+  .sme-tile .sme-tile-icon { display: none; }
+  #setup-grid .sme-tile { padding: .9rem .75rem; text-align: center; }
+  .pills { gap: .4rem; }
+  .sme-pill { font-size: .9rem; padding: 0 .7rem; min-height: 2.2rem; }
   #popout-btn { display: none; } /* already a small window at this size */
-  .sheet { padding: var(--space-5) var(--space-4); }
-  #send-bar { padding: var(--space-3) var(--space-4); }
+  .sheet { padding: 1.4rem 1rem; }
+  #send-bar { padding: .6rem .75rem; }
+  #send-bar .sme-btn { min-height: 3rem; }
+  #send-bar-btn { font-size: 1.05rem; }
   .sheet-actions { flex-direction: column-reverse; }
-  .sheet-actions .sme-btn { flex: none; width: 100%; }
+  .sheet-actions .sme-btn { flex: none; width: 100%; min-height: 3rem; }
+  .sme-alert .sme-what { font-size: 1.5rem; }
+  .note-row .sme-field { gap: .3rem; }
 }
 
 /* ---------------------------------------------------------------- flash

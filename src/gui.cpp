@@ -74,12 +74,22 @@ const wchar_t kOldRunValue[] = L"DentalFlow";
 const wchar_t kMutexName[] = L"Local\\DentalComms.Server";
 const wchar_t kShowMessage[] = L"DentalComms.ShowWindow";
 
-// Sizes in 96-DPI pixels; S() scales them for the monitor. Everything else
-// comes from the design system's tokens in theme.h.
-constexpr int kWidth = 640;
-constexpr int kMinHeight = 420;
-constexpr int kPad = t::space6;   // the page's side margins
+// Sizes in 96-DPI pixels; S() scales them for the monitor. The colours and
+// shapes come from the design system's tokens in theme.h; the sizes are the
+// window's own, kept to those of 0.9.4, which offices found comfortable.
+constexpr int kWidth = 620;
+constexpr int kMinHeight = 400;
+constexpr int kPad = 26;          // the page's side margins
 constexpr int kRing = 5;          // room around a button for its focus ring
+constexpr int kBtn = 32;          // button height
+constexpr int kBtnPad = 16;       // space either side of a button's words
+constexpr int kBtnIcon = 16;      // an icon inside a button
+constexpr int kIconGap = 6;       // between that icon and the words
+constexpr int kBannerIcon = 18;
+constexpr int kRowIcon = 24;      // the round state icon on a checklist row
+constexpr int kIndent = 34;       // checklist text, right of that icon
+constexpr int kFeature = 34;      // the round icon on the Welcome list
+constexpr int kCardPad = 18;      // inside cards and the address panel
 
 enum Page { PageWelcome, PageChecking, PageReady, PageStatus };
 
@@ -122,9 +132,10 @@ struct Font {
     t::TypeStyle style;
     HFONT h = nullptr;
 };
-Font g_title{t::title}, g_body{t::body}, g_bodyBold{{17, 26, 600}}, g_label{t::label},
-    g_labelPlain{{15, 20, 400}}, g_overline{t::overline}, g_button{t::button},
-    g_buttonBig{t::buttonBig}, g_address{t::tileLabel}, g_banner{t::banner};
+Font g_title{{23, 29, 700}}, g_body{{15, 21, 400}}, g_bodyBold{{15, 21, 600}},
+    g_label{{13, 18, 600}}, g_labelPlain{{13, 18, 400}}, g_overline{{11, 16, 700}},
+    g_button{{15, 20, 600}}, g_buttonBig{{15, 20, 700}}, g_address{{20, 26, 700}},
+    g_banner{{15, 21, 600}};
 
 Font* allFonts[] = {&g_title,   &g_body,   &g_bodyBold,  &g_label,   &g_labelPlain,
                     &g_overline, &g_button, &g_buttonBig, &g_address, &g_banner};
@@ -464,8 +475,8 @@ int buttonWidth(HWND b) {
     if (it == g_btn.end()) return S(120);
     wchar_t text[128] = {0};
     GetWindowTextW(b, text, 128);
-    int w = textWidth(buttonFont(it->second), text) + 2 * S(t::space5);
-    if (it->second.hasIcon) w += S(22) + S(t::space2);
+    int w = textWidth(buttonFont(it->second), text) + 2 * S(kBtnPad);
+    if (it->second.hasIcon) w += S(kBtnIcon) + S(kIconGap);
     return std::max(w, it->second.minWidth);
 }
 
@@ -563,11 +574,11 @@ void drawButton(const DRAWITEMSTRUCT* di) {
     GetWindowTextW(di->hwndItem, text, 128);
     const Font& f = buttonFont(info);
     const int tw = textWidth(mem, f, text);
-    const int iconW = info.hasIcon ? S(22) + S(t::space2) : 0;
+    const int iconW = info.hasIcon ? S(kBtnIcon) + S(kIconGap) : 0;
     int cx = (W - (tw + iconW)) / 2;
     const int lineTop = (H - S(f.style.line)) / 2;
     if (info.hasIcon) {
-        drawIcon(mem, info.icon, cx, (H - S(22)) / 2, S(22), ink);
+        drawIcon(mem, info.icon, cx, (H - S(kBtnIcon)) / 2, S(kBtnIcon), ink);
         cx += iconW;
     }
     drawLine(mem, f, ink, cx, lineTop, text);
@@ -665,12 +676,12 @@ void box(Walk& w, int padX, int padY, Bg bg, Body body) {
 
 template <class Body>
 void card(Walk& w, int padY, Body body) {
-    box(w, t::space5, padY, [&](const RECT& r) { cardBg(w.dc, r); }, body);
+    box(w, kCardPad, padY, [&](const RECT& r) { cardBg(w.dc, r); }, body);
 }
 
 // A section kicker in the overline style: "STAFF COMPUTERS GO TO".
 void kicker(Walk& w, const std::wstring& s) {
-    w.text(g_overline, t::inkMuted, s, 0, t::space2);
+    w.text(g_overline, t::inkMuted, s, 0, 6);
 }
 
 // The design system's Banner: an icon and one sentence.
@@ -680,15 +691,16 @@ void banner(Walk& w, BannerKind kind, const std::wstring& s) {
     const COLORREF edge = kind == BannerKind::Info ? kNone : t::warning;
     const COLORREF iconInk = kind == BannerKind::Info ? t::primaryInk : t::warningInk;
     box(
-        w, t::space4, t::space3,
+        w, 14, 10,
         [&](const RECT& r) { shape(w.dc, r, S(t::radiusMd), bg, 255, edge); },
         [&](Walk& c) {
             const int top = c.y;
-            const int indent = S(22) + S(t::space3);
+            const int indent = S(kBannerIcon) + S(10);
             c.text(g_banner, t::ink, s, indent, 0);
             if (c.painting())
                 drawIcon(c.dc, kind == BannerKind::Info ? Icon::Info : Icon::Alert, c.left,
-                         top + (S(t::banner.line) - S(22)) / 2, S(22), iconInk);
+                         top + (S(g_banner.style.line) - S(kBannerIcon)) / 2, S(kBannerIcon),
+                         iconInk);
         });
 }
 
@@ -701,62 +713,61 @@ struct Status {
 };
 void header(Walk& w, int step, const std::wstring& title, const std::wstring& help,
             const Status* status = nullptr, const Font* helpFont = nullptr) {
-    w.y += S(28);
+    w.y += S(22);
     if (step) {
         // StepBadge: "STEP 1 OF 3".
         const std::wstring s = L"STEP " + std::to_wstring(step) + L" OF 3";
         const int bw = textWidth(g_overline, s) + 2 * S(t::space3);
-        const int bh = S(t::overline.line) + 2 * S(t::space1);
+        const int bh = S(g_overline.style.line) + 2 * S(3);
         if (w.painting()) {
             shape(w.dc, RECT{w.left, w.y, w.left + bw, w.y + bh}, bh / 2, t::primaryTint);
-            drawLine(w.dc, g_overline, t::primaryInk, w.left + S(t::space3), w.y + S(t::space1), s);
+            drawLine(w.dc, g_overline, t::primaryInk, w.left + S(t::space3), w.y + S(3), s);
         }
-        w.y += bh + S(t::space3);
+        w.y += bh + S(10);
     }
     Walk tw = w;
     int sw = 0;
-    const int sh = S(32);
+    const int sh = S(24);
     if (status) {
-        sw = S(t::space3) + S(18) + S(t::space2) + textWidth(g_label, status->text) +
-             S(t::space3) + S(2);
+        sw = S(10) + S(14) + S(6) + textWidth(g_label, status->text) + S(10) + S(2);
         tw.right -= sw + S(t::space4);
     }
     const int titleTop = w.y;
     tw.text(g_title, t::ink, title, 0, 0);
     if (status && w.painting()) {
-        const int y = titleTop + (S(t::title.line) - sh) / 2;
+        const int y = titleTop + (S(g_title.style.line) - sh) / 2;
         const int x = w.right - sw;
         shape(w.dc, RECT{x, y, w.right, y + sh}, sh / 2, status->bg);
-        drawIcon(w.dc, status->icon, x + S(t::space3), y + (sh - S(18)) / 2, S(18),
+        drawIcon(w.dc, status->icon, x + S(10), y + (sh - S(14)) / 2, S(14),
                  status->iconInk);
-        drawLine(w.dc, g_label, status->ink, x + S(t::space3) + S(18) + S(t::space2),
-                 y + (sh - S(t::label.line)) / 2, status->text);
+        drawLine(w.dc, g_label, status->ink, x + S(10) + S(14) + S(6),
+                 y + (sh - S(g_label.style.line)) / 2, status->text);
     }
     w.y = tw.y;
     if (!help.empty()) {
-        w.y += S(t::space1);
+        w.y += S(2);
         w.text(helpFont ? *helpFont : g_body, t::inkMuted, help, 0, 0);
     }
-    w.y += S(t::space5);
+    w.y += S(18);
 }
 
 // A round icon with a heading and a sentence beside it (the Welcome list).
 void feature(Walk& c, Icon icon, const std::wstring& title, const std::wstring& body,
              bool divider) {
-    c.y += S(t::space4);
-    const int top = c.y, d = S(44), indent = d + S(t::space4);
+    c.y += S(12);
+    const int top = c.y, d = S(kFeature), indent = d + S(14);
     if (c.painting()) {
         circle(c.dc, c.left, top, d, t::sand100);
-        drawIcon(c.dc, icon, c.left + (d - S(22)) / 2, top + (d - S(22)) / 2, S(22), t::clay);
+        drawIcon(c.dc, icon, c.left + (d - S(18)) / 2, top + (d - S(18)) / 2, S(18), t::clay);
     }
     c.text(g_bodyBold, t::ink, title, indent, 0);
     c.text(g_body, t::inkMuted, body, indent, 0);
-    c.y = std::max(c.y, top + d) + S(t::space4);
+    c.y = std::max(c.y, top + d) + S(12);
     if (divider && c.painting()) hline(c.dc, c.left + indent, c.right, c.y, t::line);
 }
 
 void stateIcon(HDC dc, int x, int y, int d, CheckState s) {
-    const int i = S(18), o = (d - i) / 2;
+    const int i = d * 3 / 5, o = (d - i) / 2;
     switch (s) {
         case CheckState::Ok:
             circle(dc, x, y, d, t::successTint);
@@ -794,26 +805,26 @@ void rows(Walk& w, size_t count, bool skipOk) {
             if (btn && w.placing()) ShowWindow(btn, SW_HIDE);
             continue;
         }
-        if (!first && w.painting()) hline(w.dc, w.left + S(48), w.right, w.y, t::line);
+        if (!first && w.painting()) hline(w.dc, w.left + S(kIndent), w.right, w.y, t::line);
         first = false;
-        w.y += S(10);
-        const int top = w.y, d = S(32), indent = S(48);
-        if (w.painting()) stateIcon(w.dc, w.left, top + (S(26) - d) / 2 + S(1), d, c.state);
+        w.y += S(8);
+        const int top = w.y, d = S(kRowIcon), indent = S(kIndent);
+        if (w.painting())
+            stateIcon(w.dc, w.left, top + (S(g_bodyBold.style.line) - d) / 2, d, c.state);
         w.text(g_bodyBold, t::ink, widen(c.text), indent, 0);
         if (!c.help.empty()) w.text(g_body, t::inkMuted, widen(c.help), indent, 0);
         if (btn) {
-            w.y += S(t::space3);
+            w.y += S(8);
             if (w.placing())
-                placeBody(btn, w.left + indent, w.y, buttonWidth(btn), S(t::targetMin),
-                          t::surfaceRaised);
-            w.y += S(t::targetMin);
+                placeBody(btn, w.left + indent, w.y, buttonWidth(btn), S(kBtn), t::surfaceRaised);
+            w.y += S(kBtn);
         }
         const std::string& note = g_fixNote[(int)c.fix];
         if (c.fix != Fix::None && !note.empty()) {
-            w.y += S(t::space2);
+            w.y += S(6);
             w.text(g_body, t::warningInk, widen(note), indent, 0);
         }
-        w.y = std::max(w.y, top + d) + S(10);
+        w.y = std::max(w.y, top + d) + S(8);
     }
 }
 
@@ -826,12 +837,12 @@ bool anyRows(size_t count, bool skipOk) {
 // One address with its own Copy button, on the light blue panel.
 void addressLine(Walk& c, const std::wstring& caption, const std::wstring& addr, HWND copy,
                  bool divider) {
-    c.y += S(t::space4);
+    c.y += S(12);
     const int top = c.y;
     const int bw = buttonWidth(copy);
     Walk tw = c;
-    tw.right = c.right - bw - S(t::space4);
-    tw.text(g_overline, t::primaryInk, caption, 0, t::space1);
+    tw.right = c.right - bw - S(14);
+    tw.text(g_overline, t::primaryInk, caption, 0, 2);
     // An address broken across two lines gets typed with a space in it, so a
     // long one is set smaller rather than wrapped.
     const Font& f = textWidth(g_address, addr) <= tw.right - tw.left ? g_address : g_bodyBold;
@@ -839,9 +850,8 @@ void addressLine(Walk& c, const std::wstring& caption, const std::wstring& addr,
     tw.y += S(f.style.line);
     const int h = tw.y - top;
     if (c.placing())
-        placeBody(copy, c.right - bw, top + (h - S(t::targetMin)) / 2, bw, S(t::targetMin),
-                  t::sky100);
-    c.y = std::max(tw.y, top + S(t::targetMin)) + S(t::space4);
+        placeBody(copy, c.right - bw, top + (h - S(kBtn)) / 2, bw, S(kBtn), t::sky100);
+    c.y = std::max(tw.y, top + S(kBtn)) + S(12);
     if (divider && c.painting()) hline(c.dc, c.left, c.right, c.y, t::sky300);
 }
 
@@ -850,7 +860,7 @@ void addressLine(Walk& c, const std::wstring& caption, const std::wstring& addr,
 void addressPanel(Walk& w) {
     const std::wstring name = staffAddressW(), ip = ipAddressW();
     box(
-        w, t::space5, 0,
+        w, kCardPad, 0,
         [&](const RECT& r) { shape(w.dc, r, S(t::radiusMd), t::sky100); },
         [&](Walk& c) {
             addressLine(c, ip.empty() ? L"ADDRESS" : L"COMPUTER NAME", name, g_btnCopy,
@@ -858,7 +868,7 @@ void addressPanel(Walk& w) {
             if (!ip.empty()) addressLine(c, L"IP ADDRESS", ip, g_btnCopyIp, false);
         });
     if (!ip.empty()) {
-        w.y += S(t::space3);
+        w.y += S(8);
         w.text(g_body, t::inkMuted,
                L"Either one works. If the name doesn't open, use the IP address.",
                0, 0);
@@ -873,18 +883,16 @@ void actionRow(Walk& w, bool withCard) {
         for (HWND b : {g_btnCard, g_btnOpen}) {
             if (b == g_btnCard && !withCard) continue;
             const int bw = buttonWidth(b);
-            placeBody(b, x, w.y, bw, S(t::targetMin), t::surface);
-            x += bw + S(t::space3);
+            placeBody(b, x, w.y, bw, S(kBtn), t::surface);
+            x += bw + S(10);
         }
     }
-    w.y += S(t::targetMin);
+    w.y += S(kBtn);
 }
 
 bool bigFooter() { return g_page != PageStatus; }
 
-int footerHeight() {
-    return (bigFooter() ? S(t::targetBig) : S(t::targetMin)) + 2 * S(t::space4);
-}
+int footerHeight() { return S(kBtn) + 2 * S(14); }
 
 // Lays out the current page. Paints, places the buttons, or only measures,
 // depending on the walk's mode. Returns how far down the content reaches.
@@ -914,14 +922,14 @@ int layout(HDC dc, Walk::Mode mode) {
                 feature(c, Icon::Globe, L"Nothing to install anywhere else",
                         L"Other computers just open a web page.", false);
             });
-            w.y += S(t::space4);
+            w.y += S(12);
             banner(w, BannerKind::Info,
                    L"Windows may ask if Dental Comms can use your network. Click Allow.");
-            w.y += S(t::space4);
+            w.y += S(12);
             w.text(g_body, t::inkMuted,
                    L"For everyday messages only. Keep your usual way of calling for help "
                    L"for anything urgent.");
-            w.y += S(t::space5);
+            w.y += S(18);
             break;
 
         case PageChecking: {
@@ -935,7 +943,7 @@ int layout(HDC dc, Walk::Mode mode) {
                 card(w, t::space1, [&](Walk& c) { rows(c, g_revealed, false); });
             else if (placing)
                 hideRowButtons();
-            w.y += S(t::space5);
+            w.y += S(18);
             break;
         }
 
@@ -946,13 +954,13 @@ int layout(HDC dc, Walk::Mode mode) {
                        L"On each staff computer, open a web browser and go to one of these "
                        L"addresses.");
                 addressPanel(w);
-                w.y += S(t::space5);
+                w.y += S(18);
                 actionRow(w, true);
-                w.y += S(t::space4);
+                w.y += S(12);
                 w.text(g_body, t::inkMuted,
                        L"Tablets and phones can scan the QR code on the setup card. You can "
                        L"close this window: Dental Comms keeps running by the clock.");
-                w.y += S(t::space5);
+                w.y += S(18);
             } else {
                 header(w, 3, L"Can staff computers connect?",
                        L"Not yet. Fix the items below, and the address will appear here as "
@@ -961,7 +969,7 @@ int layout(HDC dc, Walk::Mode mode) {
                     card(w, t::space1, [&](Walk& c) { rows(c, g_checks.size(), true); });
                 else if (placing)
                     hideRowButtons();
-                w.y += S(t::space5);
+                w.y += S(18);
             }
             break;
 
@@ -984,12 +992,12 @@ int layout(HDC dc, Walk::Mode mode) {
                 banner(w, BannerKind::Warning,
                        L"Staff computers can't connect right now. See below.");
             }
-            w.y += S(t::space4);
+            w.y += S(12);
             actionRow(w, !addr.empty());
-            w.y += S(t::space5);
+            w.y += S(18);
             kicker(w, L"STATUS");
             card(w, t::space1, [&](Walk& c) { rows(c, g_checks.size(), false); });
-            w.y += S(t::space5);
+            w.y += S(18);
             break;
         }
     }
@@ -1009,13 +1017,14 @@ int layout(HDC dc, Walk::Mode mode) {
         fillRect(dc, RECT{0, ftop, rc.right, rc.bottom}, t::surfaceRaised);
     }
     if (placing) {
-        const int y = ftop + S(t::space4);
+        const int y = ftop + S(14);
         const int right = rc.right - S(kPad);
         if (bigFooter()) {
-            place(g_btnPrimary, S(kPad), y, right - S(kPad), S(t::targetBig), t::surfaceRaised);
+            const int bw = std::max(buttonWidth(g_btnPrimary), S(120));
+            place(g_btnPrimary, right - bw, y, bw, S(kBtn), t::surfaceRaised);
         } else {
             const int bw = buttonWidth(g_btnHide);
-            place(g_btnHide, right - bw, y, bw, S(t::targetMin), t::surfaceRaised);
+            place(g_btnHide, right - bw, y, bw, S(kBtn), t::surfaceRaised);
         }
         if (addr.empty()) ShowWindow(g_btnCopy, SW_HIDE);
         if (ipAddressW().empty()) ShowWindow(g_btnCopyIp, SW_HIDE);

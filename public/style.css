@@ -195,9 +195,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 /* ---------- toast ---------- */
 #toast {
-  position: fixed; left: 50%; bottom: 6rem; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
   z-index: 60; max-width: calc(100vw - 32px);
 }
+/* Above the send bar while it is showing. */
+body:has(#send-bar:not([hidden])) #toast { bottom: 6rem; }
 #toast button { flex: none; }
 
 /* ---------- narrow screens ---------- */

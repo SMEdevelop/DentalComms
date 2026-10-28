@@ -104,10 +104,12 @@
   </div>
 </div>
 
-<!-- The action bar: what to send, and to whom -->
-<div id="send-bar">
-  <button id="send-bar-clear" class="sme-btn sme-btn--quiet" hidden>Clear</button>
-  <button id="send-bar-btn" class="sme-btn sme-btn--primary" disabled>Pick a room first</button>
+<!-- The action bar: what to send, and to whom. Only there while rooms are
+     picked; otherwise it would sit across the bottom of every station's
+     screen all day with nothing to say. -->
+<div id="send-bar" hidden>
+  <button id="send-bar-clear" class="sme-btn sme-btn--quiet">Clear</button>
+  <button id="send-bar-btn" class="sme-btn sme-btn--primary">Send message</button>
 </div>
 
 <!-- Outgoing status -->

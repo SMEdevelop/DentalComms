@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dental Comms</title>
-<meta name="theme-color" content="#1c7ed6">
+<meta name="theme-color" content="#fffdf9">
+<link rel="stylesheet" href="sme/tokens.css">
+<link rel="stylesheet" href="sme/components.css">
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -13,26 +15,45 @@
 <body>
 
 <header id="topbar">
-  <div id="office-name">Dental Comms</div>
-  <div id="my-station-wrap">
-    <span class="muted">This computer is:</span>
-    <button id="my-station-btn" class="pill">…</button>
-    <button id="popout-btn" title="Open Dental Comms in a small window you can resize and keep in a corner">⧉ Pop out</button>
-    <a href="/admin" id="settings-link" title="Setup: rooms &amp; message buttons">⚙️ Settings</a>
-  </div>
+  <div id="office-name" class="title">Dental Comms</div>
+  <nav class="pills" aria-label="This computer">
+    <button id="my-station-btn" class="sme-pill sme-pill--active">Choose a room</button>
+    <button id="popout-btn" class="sme-pill"
+            title="Open Dental Comms in a small window you can keep in a corner"><span data-icon="popout"></span>Pop out</button>
+    <a href="/admin" id="settings-link" class="sme-pill"><span data-icon="settings"></span>Settings</a>
+  </nav>
 </header>
+
+<!-- Conditions that affect the whole screen, one sentence each. The lost
+     contact banner stays until the connection is back; the others can be
+     closed. -->
+<div id="banners">
+  <div id="offline" class="sme-banner sme-banner--danger" role="alert" hidden>
+    <span data-icon="problem"></span><span id="offline-text"></span>
+  </div>
+  <div id="sound-hint" class="sme-banner sme-banner--warning" hidden>
+    <span data-icon="mute"></span><span>Sound is off on this computer. Tap anywhere to turn it on.</span>
+  </div>
+  <div id="notice" class="sme-banner sme-banner--warning" role="alert" hidden>
+    <span data-icon="alert"></span><span id="notice-text"></span>
+    <button id="notice-close" class="sme-btn sme-btn--quiet banner-close">Close</button>
+  </div>
+</div>
 
 <main id="main">
   <!-- Worth saying to a station on its first day and not to one that has been
        sending messages all year, so it clears for good on this computer. -->
-  <h2 id="grid-title" hidden>
-    <span>Tap the rooms you want to message — you can pick more than one</span>
-    <button id="grid-title-done" title="Hide this — it will not come back on this computer">✓ Got it</button>
-  </h2>
+  <div id="grid-title" class="sme-banner sme-banner--info" hidden>
+    <span data-icon="info"></span>
+    <span>Tap the rooms you want to message. You can pick more than one.</span>
+    <button id="grid-title-done" class="sme-btn sme-btn--quiet banner-close">Hide this tip</button>
+  </div>
   <div id="station-grid" class="grid"></div>
 
   <section id="recent-panel">
-    <button id="recent-toggle">Recent activity ▾</button>
+    <button id="recent-toggle" class="sme-btn sme-btn--quiet" aria-expanded="false">
+      <span data-icon="chevron"></span><span id="recent-toggle-text">Show recent activity</span>
+    </button>
     <ul id="recent-list" hidden></ul>
   </section>
 </main>
@@ -41,65 +62,66 @@
      (on a Windows desktop) have it open by itself. Later visits only ever
      see the room picker, from the room name at the top right. -->
 <div id="setup" class="overlay" hidden>
-  <div class="sheet">
-    <p id="setup-step" class="step" hidden></p>
-    <h1 id="setup-title">Welcome! 👋</h1>
-    <p class="big" id="setup-lede">Which room is this computer in?</p>
-    <p class="muted" id="setup-hint">Tap one. You only do this once.</p>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+    <span id="setup-step" class="sme-step" hidden></span>
+    <h1 id="setup-title" class="title">Where is this computer?</h1>
+    <p id="setup-lede" class="lede"></p>
+    <p id="setup-hint" class="hint"></p>
     <div id="setup-grid" class="grid"></div>
-    <div id="setup-actions" class="setup-actions"></div>
+    <div id="setup-actions" class="sheet-actions"></div>
   </div>
 </div>
 
 <!-- Compose: pick a quick message -->
 <div id="compose" class="overlay" hidden>
-  <div class="sheet">
-    <button class="close-x" id="compose-close" aria-label="Close">✕</button>
-    <p class="big">Send to <strong id="compose-to"></strong>:</p>
-    <div id="preset-grid" class="grid"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="compose-title">
+    <button class="close-x" id="compose-close"><span data-icon="x"></span><span class="sr-only">Close</span></button>
+    <h1 id="compose-title" class="title">Send to <span id="compose-to"></span></h1>
+    <p class="lede">Tap a message to send it.</p>
+    <div id="preset-grid" class="msg-grid"></div>
     <div class="note-row">
-      <input id="compose-note" type="text" maxlength="120"
-             placeholder="Optional: type a short note instead…">
-      <button id="compose-send-note" class="btn-plain">Send note</button>
+      <div id="note-field" class="sme-field">
+        <label for="compose-note">Or type a note (optional)</label>
+        <input id="compose-note" type="text" maxlength="120" placeholder="e.g. Room 3 needs more gloves">
+        <span id="note-hint" class="sme-hint">Please don't include patient names.</span>
+      </div>
     </div>
-    <button id="compose-cancel" class="btn-big btn-gray">Cancel</button>
+    <div class="sheet-actions">
+      <button id="compose-cancel" class="sme-btn sme-btn--quiet">Cancel</button>
+      <button id="compose-send-note" class="sme-btn sme-btn--secondary"><span data-icon="send"></span>Send note</button>
+    </div>
   </div>
 </div>
 
-<!-- Incoming alert -->
+<!-- Incoming alert: stays until someone taps Got it -->
 <div id="alert" class="overlay" hidden>
-  <div class="sheet alert-sheet" id="alert-sheet">
-    <p class="alert-from">Message from <strong id="alert-from"></strong></p>
-    <p class="alert-label" id="alert-label"></p>
-    <p class="alert-note" id="alert-note"></p>
-    <button id="alert-ack" class="btn-big btn-ack">✓&nbsp; Got it</button>
-    <p class="muted" id="alert-more"></p>
+  <div class="sme-alert" id="alert-sheet" role="alertdialog" aria-labelledby="alert-label">
+    <p class="sme-from" id="alert-from"></p>
+    <p class="sme-what" id="alert-label"></p>
+    <p class="sme-note" id="alert-note"></p>
+    <button id="alert-ack" class="sme-btn sme-btn--success sme-btn--big"><span data-icon="check"></span>Got it</button>
+    <p class="hint" id="alert-more"></p>
   </div>
 </div>
 
-<!-- Send bar: appears when rooms are selected -->
-<div id="send-bar" hidden>
-  <button id="send-bar-clear">✕ Clear</button>
-  <button id="send-bar-btn">Send a message ➤</button>
+<!-- The action bar: what to send, and to whom -->
+<div id="send-bar">
+  <button id="send-bar-clear" class="sme-btn sme-btn--quiet" hidden>Clear</button>
+  <button id="send-bar-btn" class="sme-btn sme-btn--primary" disabled>Pick a room first</button>
 </div>
 
-<!-- Outgoing status toast -->
-<div id="toast" hidden>
+<!-- Outgoing status -->
+<div id="toast" class="sme-toast" role="status" hidden>
   <span id="toast-text"></span>
-  <button id="toast-cancel" hidden>Cancel</button>
+  <button id="toast-cancel" hidden>Undo</button>
 </div>
-
-<div id="sound-hint" hidden>🔈 Tap anywhere once to turn on sounds</div>
 
 <!-- Screen flash for an arriving message. Sits above everything and ignores
      the mouse entirely, so it can never come between a finger and the
      "Got it" button. Does nothing unless switched on in Settings. -->
 <div id="flash" aria-hidden="true"></div>
 
-<!-- Shown whenever the live connection to the server is down, so nobody is
-     looking at a screen that quietly stopped receiving messages. -->
-<div id="offline" hidden>⚠️ Lost contact with Dental Comms, so messages may not arrive. Reconnecting…</div>
-
+<script src="icons.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

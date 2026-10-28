@@ -10,6 +10,13 @@
 
 namespace on {
 
+// Message buttons come in the SMEdevelop design system's seven colours only,
+// so white text on them always stays readable. Any other colour - from an
+// older Settings page, or typed into config.json - becomes the closest of
+// the seven, and the colours Dental Comms used to offer become the one that
+// means the same thing (red stays the urgent one).
+std::string nearestMessageColour(const std::string& hex);
+
 // What Dental Comms should do on a given kind of network.
 enum class NetMode {
     Office,     // listen on every interface - staff computers can reach it

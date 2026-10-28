@@ -1,0 +1,62 @@
+/* SMEdevelop design tokens for Dental Comms.
+   Copied from the SMEdevelop design system's tokens.json (version 2).
+   Change the design system first, then copy the values here. */
+:root {
+  --surface: #f7f3ec;
+  --surface-raised: #fffdf9;
+  --surface-sunken: #efe8dc;
+  --surface-hover: #e6dccb;
+  --line: #e3d9c8;
+  --line-strong: #9a8a74;
+  --ink: #3a3027;
+  --ink-muted: #6e5f4e;
+  --sky-100: #e3eef6;
+  --sky-300: #b9d3e6;
+  --sand-100: #f1e6d8;
+  --sand-300: #dcc6a8;
+  --clay: #a0704a;
+  --clay-ink: #7a5235;
+  --primary: #3d6b8e;
+  --primary-hover: #335c7b;
+  --on-primary: #ffffff;
+  --primary-tint: #e3eef6;
+  --primary-ink: #2f5878;
+  --focus-ring: #3d6b8e;
+  --success: #4f7a52;
+  --on-success: #ffffff;
+  --success-tint: #e5efe2;
+  --warning: #c98a2b;
+  --warning-tint: #faf0d9;
+  --warning-ink: #8a5a12;
+  --danger: #b4483a;
+  --on-danger: #ffffff;
+  --danger-tint: #f8e5e0;
+  --danger-ink: #a03f32;
+  --overlay: rgba(58, 48, 39, 0.40);
+  --msg-red: #b4483a;
+  --msg-green: #4f7a52;
+  --msg-blue: #3d6b8e;
+  --msg-ochre: #9a6a2e;
+  --msg-plum: #7a5a7e;
+  --msg-spruce: #3f7a74;
+  --msg-walnut: #6f5a48;
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --target-min: 48px;
+  --target-big: 64px;
+  --tile-min: 220px;
+  --shadow-soft: 0 1px 2px rgba(58, 48, 39, 0.06), 0 2px 8px rgba(58, 48, 39, 0.05);
+  --shadow-hover: 0 4px 16px rgba(61, 107, 142, 0.16);
+  --shadow-bar: 0 -6px 24px rgba(58, 48, 39, 0.08);
+  --shadow-sheet: 0 16px 48px rgba(58, 48, 39, 0.20);
+}

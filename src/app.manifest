@@ -9,7 +9,7 @@
     gui.cpp) and follows a move to a monitor with a different scale.
 -->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="SMEdevelop.DentalComms" version="0.9.4.0" processorArchitecture="amd64"/>
+  <assemblyIdentity type="win32" name="SMEdevelop.DentalComms" version="0.9.5.0" processorArchitecture="amd64"/>
   <description>Dental Comms - intraoffice messaging server</description>
   <dependency>
     <dependentAssembly>

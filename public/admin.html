@@ -3,119 +3,142 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dental Comms — Settings</title>
-<meta name="theme-color" content="#1c7ed6">
+<title>Settings — Dental Comms</title>
+<meta name="theme-color" content="#fffdf9">
+<link rel="stylesheet" href="sme/tokens.css">
+<link rel="stylesheet" href="sme/components.css">
 <link rel="stylesheet" href="style.css">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
-  #main { max-width: 720px; }
+  #main { max-width: 820px; padding-bottom: 140px; }
   .card {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 22px; margin-bottom: 22px;
+    background: var(--surface-raised); border: 2px solid var(--line);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-soft);
+    padding: var(--space-5); margin-bottom: var(--space-5);
   }
-  .card h3 { margin-bottom: 6px; }
-  .card .hint { color: var(--muted); font-size: .95rem; margin-bottom: 14px; }
-  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-  .row input[type=text] {
-    flex: 1; font-size: 1.05rem; padding: 10px 14px;
-    border: 2px solid var(--line); border-radius: 10px;
+  .card h2 { font: 700 20px/26px var(--font-sans); }
+  .card > .hint { margin: var(--space-1) 0 var(--space-4); }
+  .sme-field { max-width: none; }
+  .back { margin-bottom: var(--space-4); }
+
+  /* rooms */
+  .room-row { display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-3); }
+  .room-row input { flex: 1; }
+  input[type=text] {
+    min-height: var(--target-min); padding: 0 var(--space-4);
+    font: 400 17px/26px var(--font-sans); color: var(--ink);
+    background: var(--surface-raised);
+    border: 2px solid var(--line-strong); border-radius: var(--radius-md);
   }
-  .row input[type=text]:focus { outline: none; border-color: var(--blue); }
-  .row input[type=color] {
-    width: 46px; height: 42px; border: none; border-radius: 10px;
-    background: none; cursor: pointer; padding: 0;
+  input[type=text]:focus { border-color: var(--primary); }
+
+  /* message buttons: one sand row each, with a live preview */
+  .msg-row {
+    display: grid; grid-template-columns: 200px 1fr; gap: var(--space-4);
+    padding: var(--space-4); margin-bottom: var(--space-4);
+    background: var(--sand-100); border-radius: var(--radius-md);
   }
-  .row label.urgent {
-    display: flex; align-items: center; gap: 6px;
-    font-size: .9rem; color: var(--muted); white-space: nowrap; cursor: pointer;
+  .msg-row .sme-msg { align-self: start; min-height: 112px; font-size: 20px; line-height: 26px; cursor: default; }
+  .msg-row .sme-msg:hover { filter: none; }
+  .msg-row .sme-msg:active { transform: none; }
+  .msg-row .controls { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .msg-row label.small { font: 600 15px/20px var(--font-sans); }
+  .msg-row .label-field { display: flex; flex-direction: column; gap: 6px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .swatch {
+    position: relative; width: var(--target-min); height: var(--target-min);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
-  .row .del {
-    border: none; background: #fdecec; color: #c0392b;
-    width: 42px; height: 42px; border-radius: 10px;
-    font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+  .swatch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .swatch span {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #ffffff;
+    box-shadow: 0 0 0 2px var(--surface-raised);
   }
-  .row .del:hover { background: #f9d9d9; }
-  /* Up/down buttons rather than drag-and-drop: these screens are tablets as
-     often as they are PCs, and dragging on a touchscreen fights with
-     scrolling the page. Two taps always work. */
-  .row .move {
-    display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
-  }
-  .row .move button {
-    border: none; background: var(--line); color: var(--muted);
-    width: 30px; height: 20px; border-radius: 6px;
-    font-size: .7rem; line-height: 1; cursor: pointer; padding: 0;
-  }
-  .row .move button:hover:not(:disabled) { background: var(--blue); color: #fff; }
-  .row .move button:disabled { opacity: .35; cursor: default; }
+  .swatch input:checked + span { box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px var(--ink); }
+  .swatch input:focus-visible + span { outline: 3px solid var(--focus-ring); outline-offset: 4px; }
+  .swatch span .dc-icon { width: 20px; height: 20px; display: none; }
+  .swatch input:checked + span .dc-icon { display: block; }
+  .colour-name { font: 600 15px/20px var(--font-sans); color: var(--clay-ink); }
+  .row-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
   .check-row {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
-    font-size: 1.05rem; cursor: pointer;
+    display: flex; align-items: center; gap: var(--space-3);
+    min-height: var(--target-min); cursor: pointer;
   }
   .check-row input[type=checkbox] {
-    width: 22px; height: 22px; flex-shrink: 0; cursor: pointer;
+    width: 24px; height: 24px; flex: none; cursor: pointer; accent-color: var(--primary);
   }
-  .add-btn {
-    border: 2px dashed var(--line); background: none; color: var(--muted);
-    width: 100%; padding: 12px; border-radius: 10px;
-    font-size: 1rem; font-weight: 700; cursor: pointer;
+  .add-btn { width: 100%; }
+
+  /* save bar */
+  #save-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; justify-content: center; gap: var(--space-3); align-items: center;
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface-raised); box-shadow: var(--shadow-bar);
   }
-  .add-btn:hover { border-color: var(--blue); color: var(--blue); }
-  #save {
-    background: var(--green); color: #fff;
+  #save { min-height: var(--target-big); flex: 1; max-width: 640px; font-size: 20px; font-weight: 700; }
+  #saved {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-4); border-radius: var(--radius-pill);
+    background: var(--success-tint); color: var(--ink); font-weight: 600;
   }
-  #saved-msg { text-align: center; font-weight: 700; color: var(--green); margin-top: 12px; min-height: 1.4em; }
-  .backlink { display: inline-block; margin-bottom: 18px; color: var(--blue); font-weight: 700; text-decoration: none; }
-  /* A link that reads as a button. Deliberately not .btn-big: that is the
-     green Save button's shape, and this saves nothing - it leaves the page. */
-  .setup-btn {
-    display: inline-block; text-decoration: none;
-    border: 2px solid var(--blue); color: var(--blue); background: none;
-    padding: 12px 20px; border-radius: 10px;
-    font-size: 1rem; font-weight: 700;
+  #saved .dc-icon { color: var(--success); }
+
+  @media (max-width: 600px) {
+    .msg-row { grid-template-columns: 1fr; }
+    #save-bar { flex-direction: column-reverse; }
+    #save { width: 100%; }
   }
-  .setup-btn:hover { background: var(--blue); color: #fff; }
 </style>
 </head>
 <body>
 
 <header id="topbar">
-  <div id="office-name">Dental Comms — Settings</div>
+  <div class="title">Settings</div>
 </header>
 
+<div id="banners">
+  <div id="problem" class="sme-banner sme-banner--danger" role="alert" hidden>
+    <span data-icon="problem"></span><span id="problem-text"></span>
+  </div>
+</div>
+
 <main id="main">
-  <a class="backlink" href="/">← Back to messages</a>
+  <a class="sme-btn sme-btn--quiet back" href="/"><span data-icon="back"></span>Back to messages</a>
 
-  <div class="card">
-    <h3>Office name</h3>
+  <section class="card">
+    <h2>Office name</h2>
     <p class="hint">Shown at the top of everyone's screen.</p>
-    <div class="row"><input type="text" id="office-input" maxlength="60"></div>
-  </div>
+    <div class="sme-field">
+      <label for="office-input">Office name</label>
+      <input type="text" id="office-input" maxlength="60" placeholder="e.g. Smile Dental">
+    </div>
+  </section>
 
-  <div class="card">
-    <h3>Stations</h3>
-    <p class="hint">One for each computer or room — e.g. “Front Desk”, “Room 1”, “Lab”.</p>
+  <section class="card">
+    <h2>Rooms</h2>
+    <p class="hint">One for each computer or room, named the way you say them out loud: "Front desk", "Op 2", "Lab".</p>
     <div id="stations"></div>
-    <button class="add-btn" id="add-station">＋ Add a station</button>
-  </div>
+    <button class="sme-btn sme-btn--secondary add-btn" id="add-station"><span data-icon="plus"></span>Add a room</button>
+  </section>
 
-  <div class="card">
-    <h3>Quick-message buttons</h3>
-    <p class="hint">The big buttons staff tap to send a message. Pick a color for each.
-       “Urgent” makes the chime louder and more frequent.
-       Use ▲ ▼ to change the order they appear in — the top one here is the
-       first button on everyone’s screen.</p>
+  <section class="card">
+    <h2>Message buttons</h2>
+    <p class="hint">The big buttons staff tap to send a message. Use the same colour for the
+      same meaning everywhere: terracotta for urgent, sage for ready. The first button
+      here is the first on everyone's screen.</p>
     <div id="presets"></div>
-    <button class="add-btn" id="add-preset">＋ Add a button</button>
-  </div>
+    <button class="sme-btn sme-btn--secondary add-btn" id="add-preset"><span data-icon="plus"></span>Add a message button</button>
+  </section>
 
-  <div class="card">
-    <h3>How alerts announce themselves</h3>
-    <p class="hint">What happens on the screen that receives a message. This is
-       the same for every station.</p>
+  <section class="card">
+    <h2>How messages announce themselves</h2>
+    <p class="hint">What happens on the screen that receives a message. The same for every room.</p>
     <label class="check-row">
       <input type="checkbox" id="notify-sound">
-      <span>Play a chime until someone taps “Got it”</span>
+      <span>Play a chime until someone taps Got it</span>
     </label>
     <label class="check-row">
       <input type="checkbox" id="notify-flash">
@@ -125,38 +148,61 @@
       <input type="checkbox" id="notify-taskbar">
       <span>Blink the taskbar when Dental Comms is behind another window</span>
     </label>
-    <p class="hint" style="margin-top:12px;margin-bottom:0">
-      Flashing is worth leaving on where a tablet may be muted, or the room is
-      noisy. Blinking the taskbar is for a station that works in another
-      program all day with Dental Comms behind it — use <strong>⧉ Pop out</strong>
-      there, so it has a taskbar button of its own to blink. The first message
-      after that asks the computer for permission to show notifications; say
-      yes. Turn all three off and a message still appears on screen and waits —
-      it just does so quietly.
+    <p class="hint" style="margin-top: var(--space-3)">
+      Flashing helps where a tablet may be muted or the room is noisy. Blinking the
+      taskbar is for a computer that works in another program all day: use
+      <strong>Pop out</strong> there, so Dental Comms has its own taskbar button to
+      blink. The first message after that asks for permission to show
+      notifications; allow it. With all three off, a message still appears on screen
+      and waits, quietly.
     </p>
-  </div>
+  </section>
 
-  <button id="save" class="btn-big">Save changes</button>
-  <p id="saved-msg"></p>
-
-  <!-- Below Save on purpose. Everything above is office-wide and takes
-       effect everywhere once saved; this is a per-computer job that saves
-       nothing, and an admin who has just renamed a room should not be left
-       wondering whether it needs saving too. -->
-  <div class="card">
-    <h3>Set up this computer</h3>
-    <p class="hint">Have Dental Comms open by itself, in its own window, when
-       this computer starts up — no tabs, no address bar, nothing to press.
-       This one is per computer rather than for the whole office, so run it
-       once on each. Nothing here is saved by the button above.</p>
-    <a class="setup-btn" href="/setup">🖥️ Set up this computer</a>
-  </div>
+  <!-- Saves nothing. Everything above is for the whole office and is saved
+       by the bar at the bottom; this is a one-off job on each computer. -->
+  <section class="card">
+    <h2>Set up this computer</h2>
+    <p class="hint">Have Dental Comms open by itself, in its own window, when this
+      computer starts. Do it once on each computer. Nothing here needs saving.</p>
+    <a class="sme-btn sme-btn--secondary" href="/setup"><span data-icon="monitor"></span>Set up this computer</a>
+  </section>
 </main>
 
+<div id="save-bar">
+  <span id="saved" role="status" hidden><span data-icon="check"></span>Saved. Everyone's screens are updated.</span>
+  <button id="save" class="sme-btn sme-btn--primary">Save changes</button>
+</div>
+
+<!-- Asks before anything is deleted, in words. -->
+<div id="confirm" class="overlay" hidden>
+  <div class="sheet" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" style="max-width: 520px">
+    <h1 id="confirm-title" class="title"></h1>
+    <p class="lede">It's only gone once you save.</p>
+    <div class="sheet-actions">
+      <button id="confirm-keep" class="sme-btn sme-btn--quiet">Keep it</button>
+      <button id="confirm-delete" class="sme-btn sme-btn--danger"></button>
+    </div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   let config = null;
+
+  // The seven message colours, with what each one means. The server stores
+  // the hex; anything else it is sent becomes the closest of these.
+  const COLOURS = [
+    { hex: '#b4483a', name: 'Terracotta', meaning: 'urgent' },
+    { hex: '#4f7a52', name: 'Sage', meaning: 'ready' },
+    { hex: '#3d6b8e', name: 'Denim', meaning: 'calls and information' },
+    { hex: '#9a6a2e', name: 'Ochre', meaning: 'help wanted' },
+    { hex: '#7a5a7e', name: 'Plum', meaning: 'free to use' },
+    { hex: '#3f7a74', name: 'Spruce', meaning: 'free to use' },
+    { hex: '#6f5a48', name: 'Walnut', meaning: 'free to use' }
+  ];
+  const colourOf = hex => COLOURS.find(c => c.hex === String(hex).toLowerCase()) || COLOURS[2];
 
   // crypto.randomUUID() only exists on https:// or on the server computer's
   // own localhost address — and staff reach Dental Comms at http://<address>,
@@ -172,29 +218,60 @@
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   }
 
+  // ---- asking before deleting
+  let onConfirm = null;
+  function confirmDelete(title, button, then) {
+    $('confirm-title').textContent = title;
+    $('confirm-delete').innerHTML = dcIcon('trash');
+    $('confirm-delete').append(button);
+    onConfirm = then;
+    $('confirm').hidden = false;
+    $('confirm-keep').focus();
+  }
+  $('confirm-keep').onclick = () => { $('confirm').hidden = true; onConfirm = null; };
+  $('confirm-delete').onclick = () => {
+    $('confirm').hidden = true;
+    if (onConfirm) onConfirm();
+    onConfirm = null;
+  };
+
+  function deleteButton(what) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'sme-btn sme-btn--danger';
+    del.innerHTML = dcIcon('trash');
+    del.append('Delete');
+    del.setAttribute('aria-label', 'Delete ' + what);
+    return del;
+  }
+
+  // ---- rooms
   function stationRow(s) {
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'room-row';
     row.dataset.id = s.id;
     const input = document.createElement('input');
     input.type = 'text'; input.maxLength = 40; input.value = s.name;
-    input.placeholder = 'Station name';
-    const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '🗑'; del.title = 'Remove';
-    del.onclick = () => row.remove();
+    input.placeholder = 'e.g. Op 2';
+    input.setAttribute('aria-label', 'Room name');
+    const del = deleteButton('this room');
+    del.onclick = () => {
+      const name = input.value.trim() || 'this';
+      confirmDelete(`Delete the "${name}" room?`, 'Delete room', () => row.remove());
+    };
     row.append(input, del);
     return row;
   }
 
+  // ---- message buttons
   // The order of the rows in the page IS the order of the buttons: save reads
   // the DOM top to bottom, and the server keeps the array as it arrives. So
   // moving a row is all reordering takes.
   function refreshMoveButtons() {
     const rows = [...$('presets').children];
     rows.forEach((row, i) => {
-      const [up, down] = row.querySelectorAll('.move button');
-      if (up) up.disabled = i === 0;
-      if (down) down.disabled = i === rows.length - 1;
+      row.querySelector('.move-up').disabled = i === 0;
+      row.querySelector('.move-down').disabled = i === rows.length - 1;
     });
   }
 
@@ -207,77 +284,173 @@
     refreshMoveButtons();
     // Keep the button under the finger that just pressed it, so a row can be
     // moved several places without hunting for it again after each tap.
-    const btn = row.querySelector(delta < 0 ? '.move button' : '.move button:last-child');
+    const btn = row.querySelector(delta < 0 ? '.move-up' : '.move-down');
     if (btn && !btn.disabled) btn.focus();
   }
 
+  let rowCount = 0;
   function presetRow(p) {
+    const n = ++rowCount;
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'msg-row';
     row.dataset.id = p.id;
-    const move = document.createElement('div');
-    move.className = 'move';
-    const up = document.createElement('button');
-    up.type = 'button'; up.textContent = '▲'; up.title = 'Move up';
-    up.onclick = () => moveRow(row, -1);
-    const down = document.createElement('button');
-    down.type = 'button'; down.textContent = '▼'; down.title = 'Move down';
-    down.onclick = () => moveRow(row, +1);
-    move.append(up, down);
-    const color = document.createElement('input');
-    color.type = 'color'; color.value = p.color;
+    row.dataset.color = colourOf(p.color).hex;
+
+    // What staff will see: the button itself.
+    const preview = document.createElement('div');
+    preview.className = 'sme-msg';
+    preview.setAttribute('aria-hidden', 'true');
+    const previewText = document.createElement('span');
+    const tag = document.createElement('span');
+    tag.className = 'sme-urgent';
+    tag.textContent = 'URGENT';
+    preview.append(previewText, tag);
+
+    const controls = document.createElement('div');
+    controls.className = 'controls';
+
+    const labelField = document.createElement('div');
+    labelField.className = 'label-field';
+    const lab = document.createElement('label');
+    lab.className = 'small';
+    lab.htmlFor = 'preset-label-' + n;
+    lab.textContent = 'Button text';
     const input = document.createElement('input');
     input.type = 'text'; input.maxLength = 60; input.value = p.label;
-    input.placeholder = 'Button text';
+    input.id = 'preset-label-' + n;
+    input.placeholder = 'e.g. Patient is ready';
+    labelField.append(lab, input);
+
+    const colourLabel = document.createElement('div');
+    colourLabel.className = 'small';
+    colourLabel.style.font = '600 15px/20px var(--font-sans)';
+    const colourName = document.createElement('span');
+    colourName.className = 'colour-name';
+    colourLabel.append('Colour: ', colourName);
+    const swatches = document.createElement('div');
+    swatches.className = 'swatches';
+    swatches.setAttribute('role', 'radiogroup');
+    swatches.setAttribute('aria-label', 'Colour');
+    for (const c of COLOURS) {
+      const sw = document.createElement('label');
+      sw.className = 'swatch';
+      sw.title = `${c.name}: ${c.meaning}`;
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'colour-' + n;
+      radio.value = c.hex;
+      radio.checked = c.hex === row.dataset.color;
+      radio.setAttribute('aria-label', `${c.name}, ${c.meaning}`);
+      radio.onchange = () => { row.dataset.color = c.hex; update(); };
+      const dot = document.createElement('span');
+      dot.style.background = c.hex;
+      dot.innerHTML = dcIcon('check');
+      sw.append(radio, dot);
+      swatches.appendChild(sw);
+    }
+
     const urgent = document.createElement('label');
-    urgent.className = 'urgent';
+    urgent.className = 'check-row';
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!p.urgent;
-    urgent.append(cb, document.createTextNode('Urgent'));
-    const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '🗑'; del.title = 'Remove';
-    del.onclick = () => { row.remove(); refreshMoveButtons(); };
-    row.append(move, color, input, urgent, del);
+    cb.onchange = () => update();
+    urgent.append(cb, document.createTextNode('Urgent: a louder chime that repeats more often'));
+
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    const up = document.createElement('button');
+    up.type = 'button'; up.className = 'sme-btn sme-btn--quiet move-up';
+    up.innerHTML = dcIcon('up'); up.append('Move up');
+    up.onclick = () => moveRow(row, -1);
+    const down = document.createElement('button');
+    down.type = 'button'; down.className = 'sme-btn sme-btn--quiet move-down';
+    down.innerHTML = dcIcon('down'); down.append('Move down');
+    down.onclick = () => moveRow(row, +1);
+    const del = deleteButton('this button');
+    del.onclick = () => {
+      const name = input.value.trim() || 'this';
+      confirmDelete(`Delete the "${name}" button?`, 'Delete button', () => {
+        row.remove();
+        refreshMoveButtons();
+      });
+    };
+    actions.append(up, down, del);
+
+    controls.append(labelField, colourLabel, swatches, urgent, actions);
+    row.append(preview, controls);
+
+    function update() {
+      const c = colourOf(row.dataset.color);
+      preview.className = 'sme-msg sme-msg--' +
+        { Terracotta: 'red', Sage: 'green', Denim: 'blue', Ochre: 'ochre', Plum: 'plum',
+          Spruce: 'spruce', Walnut: 'walnut' }[c.name];
+      previewText.textContent = input.value.trim() || 'Button text';
+      tag.hidden = !cb.checked;
+      colourName.textContent = `${c.name} (${c.meaning})`;
+    }
+    input.addEventListener('input', update);
+    update();
     return row;
   }
 
-  $('add-station').onclick = () =>
-    $('stations').appendChild(stationRow({ id: newId(), name: '' }));
-  $('add-preset').onclick = () => {
-    $('presets').appendChild(presetRow({ id: newId(), label: '', color: '#1c7ed6', urgent: false }));
-    refreshMoveButtons();
+  $('add-station').onclick = () => {
+    const row = stationRow({ id: newId(), name: '' });
+    $('stations').appendChild(row);
+    row.querySelector('input').focus();
   };
+  $('add-preset').onclick = () => {
+    const row = presetRow({ id: newId(), label: '', color: '#3d6b8e', urgent: false });
+    $('presets').appendChild(row);
+    refreshMoveButtons();
+    row.querySelector('input[type=text]').focus();
+  };
+
+  // ---- saving
+  let savedTimer = null;
+  function problem(text) {
+    $('problem-text').textContent = text;
+    $('problem').hidden = !text;
+    if (text) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   $('save').onclick = async () => {
     const stations = [...$('stations').children]
-      .map(r => ({ id: r.dataset.id, name: r.querySelector('input[type=text]').value.trim() }))
+      .map(r => ({ id: r.dataset.id, name: r.querySelector('input').value.trim() }))
       .filter(s => s.name);
     const presets = [...$('presets').children]
       .map(r => ({
         id: r.dataset.id,
         label: r.querySelector('input[type=text]').value.trim(),
-        color: r.querySelector('input[type=color]').value,
+        color: r.dataset.color,
         urgent: r.querySelector('input[type=checkbox]').checked
       }))
       .filter(p => p.label);
     const officeName = $('office-input').value.trim() || 'Our Office';
     if (!stations.length || !presets.length) {
-      $('saved-msg').textContent = 'You need at least one station and one button.';
-      $('saved-msg').style.color = '#c0392b';
+      problem('Nothing was saved. Dental Comms needs at least one room and one message button.');
       return;
     }
-    const r = await fetch('/api/config', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        officeName, stations, presets,
-        notifySound: $('notify-sound').checked,
-        notifyFlash: $('notify-flash').checked,
-        notifyTaskbar: $('notify-taskbar').checked
-      })
-    });
-    $('saved-msg').style.color = '';
-    $('saved-msg').textContent = r.ok ? '✓ Saved — everyone’s screens are updated.' : 'Something went wrong. Try again.';
-    setTimeout(() => { $('saved-msg').textContent = ''; }, 4000);
+    let ok = false;
+    try {
+      const r = await fetch('/api/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          officeName, stations, presets,
+          notifySound: $('notify-sound').checked,
+          notifyFlash: $('notify-flash').checked,
+          notifyTaskbar: $('notify-taskbar').checked
+        })
+      });
+      ok = r.ok;
+    } catch { ok = false; }
+    if (!ok) {
+      problem('Your changes weren\'t saved. Check that the main Dental Comms computer is on, then save again.');
+      return;
+    }
+    problem('');
+    $('saved').hidden = false;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => { $('saved').hidden = true; }, 4000);
   };
 
   (async () => {

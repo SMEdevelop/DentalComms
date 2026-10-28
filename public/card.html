@@ -4,48 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setup card — Dental Comms</title>
-<meta name="theme-color" content="#1c7ed6">
+<meta name="theme-color" content="#fffdf9">
+<link rel="stylesheet" href="sme/tokens.css">
+<link rel="stylesheet" href="sme/components.css">
+<link rel="stylesheet" href="style.css">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <!-- One page to print and leave by each computer, or tape to the wall: the
-     address to type, a code for tablets and phones to scan, and the three
-     taps that follow. Opened from the server window, where the browser only
+     address to type, a code for tablets and phones to scan, and the steps
+     that follow. Opened from the server window, where the browser only
      knows "localhost", so the real address comes from /api/server. -->
 <style>
-  :root { --blue:#1c7ed6; --ink:#1d2733; --muted:#66788c; --line:#dde4ea; }
-  * { box-sizing: border-box; }
-  body { margin:0; padding:24px 16px 48px; background:#f4f6f8; color:var(--ink);
-         font:17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .card { max-width: 720px; margin: 0 auto; background:#fff; border:1px solid var(--line);
-          border-radius:18px; padding:32px; }
-  .top { display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-         flex-wrap:wrap; margin-bottom:18px; }
-  h1 { font-size:1.7rem; margin:0; }
-  .office { color:var(--muted); font-weight:600; }
-  .addr-row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
-  .addr-box { flex:1 1 300px; }
-  .label { font-weight:700; margin:0 0 6px; }
+  body { padding: var(--space-5) var(--space-4) var(--space-7); }
+  .card {
+    max-width: 720px; margin: 0 auto; padding: var(--space-6);
+    background: var(--surface-raised); border: 2px solid var(--line);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-soft);
+  }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3);
+         flex-wrap: wrap; margin-bottom: var(--space-5); }
+  .office { font: 600 15px/20px var(--font-sans); color: var(--ink-muted); }
+  .addr-row { display: flex; gap: var(--space-5); align-items: center; flex-wrap: wrap; }
+  .addr-box { flex: 1 1 300px; }
+  .kicker { font: 700 13px/18px var(--font-sans); letter-spacing: .05em; text-transform: uppercase;
+            color: var(--primary-ink); }
+  .lead { font-weight: 600; margin-bottom: var(--space-2); }
   /* Sized to keep a typical address on one line: one broken across lines
      gets typed with a space in it. */
-  .addr { font:700 clamp(1.05rem, 3.3vw, 1.6rem)/1.25 ui-monospace, Consolas, monospace;
-          color:#10589f; background:#eaf3fc; border-radius:12px; padding:14px 16px;
-          overflow-wrap:anywhere; }
-  .others { color:var(--muted); font-size:.92rem; margin:10px 0 0; }
-  .qr { flex:0 0 auto; text-align:center; }
-  .qr svg { width:170px; height:170px; display:block; }
-  .qr p { margin:6px 0 0; font-size:.85rem; color:var(--muted); }
-  ol { margin:26px 0 0; padding-left:24px; }
-  ol li { margin-bottom:12px; }
-  .tip { margin-top:22px; border-left:4px solid var(--blue); background:#eaf3fc;
-         padding:12px 14px; border-radius:0 10px 10px 0; font-size:.95rem; }
-  .problem { border-left-color:#d9480f; background:#fdece4; }
-  .actions { max-width:720px; margin:18px auto 0; display:flex; gap:10px; flex-wrap:wrap; }
-  .btn { background:var(--blue); color:#fff; border:0; border-radius:10px; padding:13px 20px;
-         font-size:1rem; font-weight:700; cursor:pointer; }
-  .btn.secondary { background:#fff; color:var(--blue); border:1.5px solid var(--blue); }
+  .addr { font: 700 clamp(18px, 3.4vw, 26px)/1.25 var(--font-sans); color: var(--primary-ink);
+          overflow-wrap: anywhere; margin-top: 2px; }
+  .well { padding: var(--space-4); border-radius: var(--radius-md); background: var(--sky-100); }
+  .well hr { border: 0; border-top: 1px solid var(--sky-300); margin: var(--space-3) 0; }
+  .qr { flex: 0 0 auto; text-align: center; }
+  .qr svg { width: 170px; height: 170px; display: block; }
+  .qr svg path { fill: var(--ink); }
+  .qr p { margin-top: var(--space-2); font: 600 15px/20px var(--font-sans); color: var(--ink-muted); }
+  ol { margin: var(--space-5) 0 0; padding-left: var(--space-5); }
+  ol li { margin-bottom: var(--space-3); }
+  .card .sme-banner { margin-top: var(--space-5); font-weight: 400; }
+  .actions { max-width: 720px; margin: var(--space-4) auto 0; display: flex; gap: var(--space-3);
+             flex-wrap: wrap; justify-content: flex-end; }
   @media print {
-    body { background:#fff; padding:0; }
-    .card { border:none; padding:0; }
-    .actions { display:none; }
+    body { background: #ffffff; padding: 0; }
+    .card { border: none; box-shadow: none; padding: 0; background: #ffffff; }
+    .actions { display: none; }
   }
 </style>
 </head>
@@ -53,16 +54,23 @@
 
 <div class="card">
   <div class="top">
-    <h1>Dental Comms</h1>
+    <h1 class="title">Dental Comms</h1>
     <span class="office" id="office"></span>
   </div>
 
   <div id="ok" hidden>
     <div class="addr-row">
       <div class="addr-box">
-        <p class="label">Open a web browser and go to:</p>
-        <div class="addr" id="addr"></div>
-        <p class="others" id="others" hidden></p>
+        <p class="lead">Open a web browser and go to:</p>
+        <div class="well">
+          <div class="kicker" id="addr-kicker">Address</div>
+          <div class="addr" id="addr"></div>
+          <div id="ip-wrap" hidden>
+            <hr>
+            <div class="kicker">Or by IP address</div>
+            <div class="addr" id="ip"></div>
+          </div>
+        </div>
       </div>
       <div class="qr">
         <div id="qr"></div>
@@ -71,32 +79,36 @@
     </div>
 
     <ol>
-      <li><strong>Type the address above</strong> into Edge, Chrome or Safari
-        (any browser works), then bookmark it.</li>
-      <li><strong>Tap the room this computer is in.</strong> It's remembered
-        from then on.</li>
-      <li><strong>Answer two quick questions:</strong> whether you heard the
-        chime, and whether Dental Comms should open by itself every
-        morning.</li>
+      <li><strong>Type the address above</strong> into Edge, Chrome or Safari (any browser
+        works), then bookmark it. If the name doesn't open, use the IP address.</li>
+      <li><strong>Tap the room this computer is in.</strong> It's remembered from then
+        on.</li>
+      <li><strong>Answer two quick questions:</strong> whether you heard the chime, and
+        whether Dental Comms should open by itself every morning.</li>
     </ol>
 
-    <p class="tip">When a message arrives, the screen fills with it and a chime
-      plays until someone taps <strong>Got it</strong>. For everyday messages
-      only: keep your usual way of calling for help for anything urgent.</p>
+    <div class="sme-banner sme-banner--info">
+      <span data-icon="info"></span>
+      <span>When a message arrives, it fills the screen and a chime plays until someone
+        taps <strong>Got it</strong>. For everyday messages only: keep your usual way of
+        calling for help for anything urgent.</span>
+    </div>
   </div>
 
-  <div id="bad" class="tip problem" hidden>
-    Other computers can't connect to Dental Comms yet. Open the Dental Comms
-    window on this computer (its icon is by the clock) to see what needs
-    sorting out, then print this card again.
+  <div id="bad" class="sme-banner sme-banner--warning" hidden>
+    <span data-icon="alert"></span>
+    <span>Other computers can't connect to Dental Comms yet. Open the Dental Comms window
+      on this computer (its icon is by the clock) to see what needs sorting out, then
+      print this card again.</span>
   </div>
 </div>
 
 <div class="actions">
-  <button class="btn" id="print">Print this card</button>
-  <button class="btn secondary" id="copy">Copy the address</button>
+  <button class="sme-btn sme-btn--secondary" id="copy"><span data-icon="copy"></span><span id="copy-text">Copy address</span></button>
+  <button class="sme-btn sme-btn--primary" id="print"><span data-icon="printer"></span>Print this card</button>
 </div>
 
+<script src="icons.js"></script>
 <script src="qrcode.js"></script>
 <script>
 (async () => {
@@ -117,12 +129,13 @@
   $('ok').hidden = false;
   $('addr').textContent = addr;
 
-  // The number addresses still work when a name doesn't resolve - a
-  // computer on the guest Wi-Fi, say - so they are listed as a fallback.
-  const others = (info.addresses || []).filter(a => a !== addr);
-  if (others.length) {
-    $('others').textContent = 'If that doesn\'t open, try: ' + others.join('   or   ');
-    $('others').hidden = false;
+  // The number address still works when a name doesn't resolve - a
+  // computer on the guest Wi-Fi, say - so it is printed too.
+  const ips = (info.addresses || []).filter(a => a !== addr && /^http:\/\/[\d.]+(:\d+)?$/.test(a));
+  if (ips.length) {
+    $('addr-kicker').textContent = 'Computer name';
+    $('ip').textContent = ips[0];
+    $('ip-wrap').hidden = false;
   }
 
   try {
@@ -133,9 +146,9 @@
   } catch { $('qr').parentElement.hidden = true; }
 
   $('print').onclick = () => window.print();
-  $('copy').onclick = async (e) => {
-    try { await navigator.clipboard.writeText(addr); e.target.textContent = 'Copied'; }
-    catch { e.target.textContent = 'Select the address above and copy it'; }
+  $('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(addr); $('copy-text').textContent = 'Copied ✓'; }
+    catch { $('copy-text').textContent = 'Select the address above and copy it'; }
   };
 })();
 </script>
